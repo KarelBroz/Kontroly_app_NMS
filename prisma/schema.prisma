@@ -17,9 +17,24 @@ model User {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  importBatches ImportBatch[]
+  importBatches       ImportBatch[]
+  passwordResetTokens PasswordResetToken[]
 
   @@map("users")
+}
+
+// Token pro obnovení hesla (odkaz zaslaný e-mailem). Ukládá se jen hash
+// tokenu, nikdy syrová hodnota — ta jde jen do e-mailového odkazu.
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@map("password_reset_tokens")
 }
 
 model Project {

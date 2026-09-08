@@ -18,7 +18,8 @@ Import se dělá na úrovni vlny a lze ho nahrávat opakovaně. Detaily deduplik
 
 - **Next.js 14 (App Router) + TypeScript** — frontend i API v jednom projektu
 - **PostgreSQL (Neon) + Prisma ORM**
-- **NextAuth (Auth.js)** — přihlášení e-mailem a heslem
+- **NextAuth (Auth.js)** — přihlášení e-mailem a heslem, registrace omezená na `@nms.eu`
+- **Resend** — odesílání e-mailů (zapomenuté heslo)
 - **Tailwind CSS**
 - `xlsx` — parsování Excel/CSV importů
 
@@ -56,7 +57,13 @@ npm run db:push        # promítne Prisma schema do databáze
 npm run dev
 ```
 
-Appka poběží na http://localhost:3000. První účet si založíš na `/register`.
+Appka poběží na http://localhost:3000. První účet si založíš na `/register` (jen s e-mailem `@nms.eu`).
+
+## Přihlašování a obnovení hesla
+
+- Registrace (`/register`) je omezená na e-maily s doménou `@nms.eu` — jinou doménu appka odmítne rovnou v `registerUser` server akci.
+- Zapomenuté heslo (`/forgot-password`) pošle uživateli e-mail s časově omezeným odkazem (60 minut, jednorázový token — hash v DB, syrová hodnota jen v odkazu) na `/reset-password`, kde si nastaví nové heslo.
+- E-maily posílá [Resend](https://resend.com) přes `src/lib/mail/sendMail.ts` (čistý `fetch`, žádná další závislost). Bez nastaveného `RESEND_API_KEY` appka požadavek na reset přijme (kvůli ochraně proti zjišťování existujících účtů vždy ukáže stejnou "odesláno" hlášku), ale e-mail reálně neodejde — chyba se jen zaloguje.
 
 ## Nasazení (Vercel + Neon)
 
@@ -67,6 +74,8 @@ Appka poběží na http://localhost:3000. První účet si založíš na `/regis
    - `NEXTAUTH_URL` — veřejná URL appky
    - `NEXTAUTH_SECRET` — vygeneruj přes `openssl rand -base64 32`
    - `NEXT_PUBLIC_APP_URL` — veřejná URL appky
+   - `RESEND_API_KEY` — API klíč z [resend.com](https://resend.com) (jinak nepůjde odesílat e-maily pro obnovení hesla)
+   - `MAIL_FROM` — odesílací adresa, do ověření vlastní domény v Resendu stačí `Kontroly MS <onboarding@resend.dev>`
 4. Build krok (`npm run build`) při každém deployi spustí `prisma generate` a `prisma db push`, takže databázové schéma se drží synchronizované automaticky, bez nutnosti ručně spouštět migrace. Pro ostrý provoz s víc daty doporučujeme časem přejít na `prisma migrate deploy` s verzovanými migracemi.
 
 Appka nemá natvrdo zadanou doménu — vše jde přes env proměnné (`NEXT_PUBLIC_APP_URL`, `NEXTAUTH_URL`), takže napojení na jiný web NMS půjde udělat bez zásahu do kódu.

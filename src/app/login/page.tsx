@@ -15,6 +15,7 @@ function LoginForm() {
   const [loading, setLoading] = useState(false);
 
   const registered = searchParams.get("registered");
+  const resetDone = searchParams.get("resetDone");
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -43,6 +44,11 @@ function LoginForm() {
       {registered && (
         <p className="mb-4 rounded-lg bg-brand-green-50 px-3 py-2 text-sm text-brand-green-700">
           Účet založen, teď se přihlas.
+        </p>
+      )}
+      {resetDone && (
+        <p className="mb-4 rounded-lg bg-brand-green-50 px-3 py-2 text-sm text-brand-green-700">
+          Heslo bylo úspěšně změněno, teď se přihlas novým heslem.
         </p>
       )}
       {error && <p className="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
@@ -81,7 +87,12 @@ function LoginForm() {
           {loading ? "Přihlašuji…" : "Přihlásit se"}
         </button>
       </form>
-      <p className="mt-6 text-center text-sm text-slate-500">
+      <p className="mt-4 text-center text-sm">
+        <Link href="/forgot-password" className="font-medium text-brand-blue-600">
+          Zapomenuté heslo?
+        </Link>
+      </p>
+      <p className="mt-4 text-center text-sm text-slate-500">
         Nemáš účet?{" "}
         <Link href="/register" className="font-medium text-brand-blue-600">
           Založit účet
