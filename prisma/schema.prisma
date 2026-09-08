@@ -1,0 +1,159 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Uživatel appky. Zatím bez rolí — všichni přihlášení mají stejná práva.
+// Připraveno na přidání `role` polem bez velké přestavby.
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String?
+  passwordHash String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  importBatches ImportBatch[]
+
+  @@map("users")
+}
+
+model Project {
+  id          String   @id @default(cuid())
+  name        String
+  client      String
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  waves Wave[]
+
+  @@map("projects")
+}
+
+model Wave {
+  id        String   @id @default(cuid())
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name      String
+
+  // volné nastavení vlny
+  settings Json?
+
+  // strukturovaný scénář vlny (očekávaná pobočka, časové okno, klíčové otázky/odpovědi...)
+  // úmyslně JSON — pole se liší projekt od projektu, viz src/lib/rules
+  scenario Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  visits        Visit[]
+  importBatches ImportBatch[]
+  rules         Rule[]
+
+  @@map("waves")
+}
+
+// Jeden nahraný soubor dat, navázaný na vlnu.
+model ImportBatch {
+  id            String   @id @default(cuid())
+  waveId        String
+  wave          Wave     @relation(fields: [waveId], references: [id], onDelete: Cascade)
+  uploadedById  String?
+  uploadedBy    User?    @relation(fields: [uploadedById], references: [id])
+  fileName      String
+  rowsTotal     Int      @default(0)
+  rowsNew       Int      @default(0)
+  rowsSkipped   Int      @default(0)
+  rowsRechecked Int      @default(0)
+  createdAt     DateTime @default(now())
+
+  visits Visit[]
+
+  @@map("import_batches")
+}
+
+// Návštěva = jeden vyplněný report jednoho mystery shoppera = jeden řádek importu.
+model Visit {
+  id     String @id @default(cuid())
+  waveId String
+  wave   Wave   @relation(fields: [waveId], references: [id], onDelete: Cascade)
+
+  // stabilní klíč napříč opakovanými importy
+  inspectionId String
+
+  // hash obsahu importovaných polí — pro detekci změny při re-importu
+  contentHash String
+
+  // naparsovaná data odpovědí (klíč = název sloupce z importu)
+  data Json
+
+  lastImportBatchId String?
+  lastImportBatch   ImportBatch? @relation(fields: [lastImportBatchId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  findings Finding[]
+
+  @@unique([waveId, inspectionId])
+  @@map("visits")
+}
+
+enum RuleType {
+  COMPLETENESS
+  SCENARIO
+  ATTACHMENTS
+}
+
+// Pravidlo kontroly navázané na vlnu, nastavitelné v UI.
+model Rule {
+  id       String   @id @default(cuid())
+  waveId   String
+  wave     Wave     @relation(fields: [waveId], references: [id], onDelete: Cascade)
+  type     RuleType
+  name     String
+  config   Json
+  isActive Boolean  @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  findings Finding[]
+
+  @@map("rules")
+}
+
+enum FindingSeverity {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum FindingStatus {
+  OPEN
+  RESOLVED
+  IGNORED
+}
+
+model Finding {
+  id       String          @id @default(cuid())
+  visitId  String
+  visit    Visit           @relation(fields: [visitId], references: [id], onDelete: Cascade)
+  ruleId   String
+  rule     Rule            @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+  severity FindingSeverity @default(MEDIUM)
+  status   FindingStatus   @default(OPEN)
+  message  String
+  details  Json?
+
+  resolvedAt DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@map("findings")
+}
