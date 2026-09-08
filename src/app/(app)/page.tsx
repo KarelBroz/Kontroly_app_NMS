@@ -1,4 +1,6 @@
 import Link from "next/link";
+import { getServerSession } from "next-auth";
+import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
@@ -6,6 +8,10 @@ import { Button } from "@/components/ui/Button";
 import { FolderKanban, Upload, Plus } from "lucide-react";
 
 export default async function HomePage() {
+  const session = await getServerSession(authOptions);
+  // Jen křestní jméno z profilu (User.name je "Jméno Příjmení").
+  const firstName = session?.user?.name?.trim().split(/\s+/)[0] || null;
+
   const [projects, recentBatches] = await Promise.all([
     prisma.project.findMany({
       orderBy: { updatedAt: "desc" },
@@ -23,7 +29,9 @@ export default async function HomePage() {
     <div className="space-y-10">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-semibold text-slate-900">Vítej zpátky 👋</h1>
+          <h1 className="text-2xl font-semibold text-slate-900">
+            {firstName ? `Vítej zpátky, ${firstName} 👋` : "Vítej zpátky 👋"}
+          </h1>
           <p className="mt-1 text-sm text-slate-500">Přehled projektů a poslední aktivity.</p>
         </div>
         <Link href="/projects">
