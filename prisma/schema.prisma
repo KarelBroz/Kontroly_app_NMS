@@ -42,8 +42,17 @@ model Project {
   name        String
   client      String
   description String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+
+  // Kód projektu ve formátu např. CZ26222 — první dvě číslice po písmenech
+  // jsou rok (2026 -> "26"). Musí odpovídat názvu/kódu projektu v Intranetu.
+  // Kontrola aktuálnosti roku je ruční, viz src/lib/projectCode.ts.
+  code String? @unique
+
+  projectManager String?
+  accountManager String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   waves Wave[]
 
@@ -55,6 +64,10 @@ model Wave {
   projectId String
   project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
   name      String
+
+  // nepovinné, jen pro snazší hledání/filtrování vln
+  year  Int?
+  month Int?
 
   // volné nastavení vlny
   settings Json?

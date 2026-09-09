@@ -6,8 +6,9 @@ import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
 import { Textarea } from "@/components/ui/Textarea";
 import { Button } from "@/components/ui/Button";
-import { FolderKanban } from "lucide-react";
+import { FolderKanban, AlertTriangle } from "lucide-react";
 import { createProject } from "./actions";
+import { isProjectCodeStale, suggestedProjectCode } from "@/lib/projectCode";
 
 export default async function ProjectsPage({ searchParams }: { searchParams: { error?: string } }) {
   const projects = await prisma.project.findMany({
@@ -23,7 +24,10 @@ export default async function ProjectsPage({ searchParams }: { searchParams: { e
       </div>
 
       <Card>
-        <h2 className="mb-4 text-sm font-semibold text-slate-900">Nový projekt</h2>
+        <h2 className="text-sm font-semibold text-slate-900">Nový projekt</h2>
+        <p className="mb-4 mt-1 text-sm text-slate-500">
+          Údaje (název, kód projektu) se musí shodovat s názvy projektu v Intranetu.
+        </p>
         {searchParams.error && (
           <p className="mb-4 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{searchParams.error}</p>
         )}
@@ -35,6 +39,18 @@ export default async function ProjectsPage({ searchParams }: { searchParams: { e
           <div>
             <Label htmlFor="client">Klient</Label>
             <Input id="client" name="client" required />
+          </div>
+          <div>
+            <Label htmlFor="code">Kód projektu</Label>
+            <Input id="code" name="code" placeholder="CZ26222" required />
+          </div>
+          <div>
+            <Label htmlFor="projectManager">Projektový manažer</Label>
+            <Input id="projectManager" name="projectManager" required />
+          </div>
+          <div>
+            <Label htmlFor="accountManager">Account manager</Label>
+            <Input id="accountManager" name="accountManager" required />
           </div>
           <div className="sm:col-span-2">
             <Label htmlFor="description">Popis (nepovinné)</Label>
@@ -50,22 +66,34 @@ export default async function ProjectsPage({ searchParams }: { searchParams: { e
         <Card className="text-center text-sm text-slate-500">Zatím žádné projekty.</Card>
       ) : (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {projects.map((project) => (
-            <Link key={project.id} href={`/projects/${project.id}`}>
-              <Card className="h-full cursor-pointer">
-                <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-brand-blue-50 text-brand-blue-600">
-                  <FolderKanban className="h-5 w-5" />
-                </div>
-                <h3 className="font-semibold text-slate-900">{project.name}</h3>
-                <p className="mt-1 text-sm text-slate-500">{project.client}</p>
-                <div className="mt-4">
-                  <Badge tone="blue">
-                    {project.waves.length} {project.waves.length === 1 ? "vlna" : "vln"}
-                  </Badge>
-                </div>
-              </Card>
-            </Link>
-          ))}
+          {projects.map((project) => {
+            const stale = project.code ? isProjectCodeStale(project.code) : false;
+            const suggested = project.code ? suggestedProjectCode(project.code) : null;
+
+            return (
+              <Link key={project.id} href={`/projects/${project.id}`}>
+                <Card className="h-full cursor-pointer">
+                  <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-brand-blue-50 text-brand-blue-600">
+                    <FolderKanban className="h-5 w-5" />
+                  </div>
+                  <h3 className="font-semibold text-slate-900">{project.name}</h3>
+                  <p className="mt-1 text-sm text-slate-500">{project.client}</p>
+                  {project.code && <p className="mt-1 text-xs text-slate-400">{project.code}</p>}
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    <Badge tone="blue">
+                      {project.waves.length} {project.waves.length === 1 ? "vlna" : "vln"}
+                    </Badge>
+                    {stale && (
+                      <Badge tone="amber" className="inline-flex items-center gap-1">
+                        <AlertTriangle className="h-3 w-3" />
+                        Aktualizovat kód{suggested ? ` → ${suggested}` : ""}
+                      </Badge>
+                    )}
+                  </div>
+                </Card>
+              </Link>
+            );
+          })}
         </div>
       )}
     </div>
