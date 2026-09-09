@@ -80,7 +80,11 @@ export default async function HomePage() {
         ) : (
           <Card className="divide-y divide-slate-100 p-0">
             {recentBatches.map((batch) => (
-              <div key={batch.id} className="flex items-center justify-between px-6 py-4">
+              <Link
+                key={batch.id}
+                href={`/projects/${batch.wave.projectId}/waves/${batch.waveId}`}
+                className="flex items-center justify-between px-6 py-4 hover:bg-slate-50"
+              >
                 <div className="flex items-center gap-3">
                   <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-green-50 text-brand-green-600">
                     <Upload className="h-4 w-4" />
@@ -100,7 +104,7 @@ export default async function HomePage() {
                     +{batch.rowsNew} nových · {batch.rowsRechecked} překontrolováno
                   </p>
                 </div>
-              </div>
+              </Link>
             ))}
           </Card>
         )}

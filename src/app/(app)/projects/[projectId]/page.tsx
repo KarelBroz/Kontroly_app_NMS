@@ -210,34 +210,39 @@ export default async function ProjectDetailPage({
             {project.waves.map((wave) => {
               const period = formatWavePeriod(wave);
               return (
-                <Card key={wave.id} className="h-full">
+                <Card key={wave.id} className="relative h-full">
                   <div className="mb-3 flex items-center justify-between">
                     <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-green-50 text-brand-green-600">
                       <Layers className="h-5 w-5" />
                     </div>
+                    {/* z-10, aby zůstalo klikatelné nad "roztaženým" odkazem karty níže */}
                     <Link
                       href={`/projects/${project.id}/waves/${wave.id}/settings`}
-                      className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+                      className="relative z-10 rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
                       title="Nastavení vlny"
                     >
                       <Settings className="h-4 w-4" />
                     </Link>
                   </div>
-                  <Link href={`/projects/${project.id}/waves/${wave.id}`} className="block">
-                    <h3 className="font-semibold text-slate-900 hover:text-brand-blue-600">{wave.name}</h3>
-                    {period && <p className="mt-1 text-sm text-slate-500">{period}</p>}
-                    <div className="mt-4 flex flex-wrap gap-2">
-                      {wave.scenarios.length === 0 ? (
-                        <Badge tone="amber">Chybí scénář</Badge>
-                      ) : (
-                        <Badge tone="neutral">
-                          {wave.scenarios.length} {wave.scenarios.length === 1 ? "scénář" : "scénáře"}
-                        </Badge>
-                      )}
-                      <Badge tone="neutral">{wave.visits.length} návštěv</Badge>
-                      <Badge tone="neutral">{wave.importBatches.length} importů</Badge>
-                    </div>
-                  </Link>
+                  <h3 className="font-semibold text-slate-900">{wave.name}</h3>
+                  {period && <p className="mt-1 text-sm text-slate-500">{period}</p>}
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    {wave.scenarios.length === 0 ? (
+                      <Badge tone="amber">Chybí scénář</Badge>
+                    ) : (
+                      <Badge tone="neutral">
+                        {wave.scenarios.length} {wave.scenarios.length === 1 ? "scénář" : "scénáře"}
+                      </Badge>
+                    )}
+                    <Badge tone="neutral">{wave.visits.length} návštěv</Badge>
+                    <Badge tone="neutral">{wave.importBatches.length} importů</Badge>
+                  </div>
+                  {/* "roztažený" odkaz — celá dlaždice vede do vlny, kromě prvků s vlastním z-index */}
+                  <Link
+                    href={`/projects/${project.id}/waves/${wave.id}`}
+                    className="absolute inset-0"
+                    aria-label={`Otevřít vlnu ${wave.name}`}
+                  />
                 </Card>
               );
             })}

@@ -18,12 +18,12 @@ export function Sidebar({ userName }: { userName: string }) {
 
   return (
     <aside className="fixed inset-y-0 left-0 z-20 hidden w-64 flex-col border-r border-slate-200 bg-white md:flex">
-      <div className="flex items-center gap-2 px-6 py-5">
+      <Link href="/" className="flex items-center gap-2 px-6 py-5">
         <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-blue-500 text-white">
           <ClipboardCheck className="h-5 w-5" />
         </div>
         <span className="text-lg font-semibold text-slate-900">Kontroly MS</span>
-      </div>
+      </Link>
 
       <nav className="flex-1 space-y-1 px-3 py-2">
         {NAV_ITEMS.map((item) => {
