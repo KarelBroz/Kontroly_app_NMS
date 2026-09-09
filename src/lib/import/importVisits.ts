@@ -12,23 +12,26 @@ export interface ImportResult {
 }
 
 /**
- * Naimportuje soubor do vlny: pro každý řádek podle InspectionId buď
- * založí novou návštěvu (+ rovnou zkontroluje), přeskočí ji (beze změny
- * obsahu), nebo aktualizuje a zkontroluje znovu (obsah se změnil).
+ * Naimportuje soubor do vlny pod ZVOLENÝ SCÉNÁŘ (celý soubor patří jednomu
+ * scénáři — vybírá se ručně při potvrzení importu). Pro každý řádek podle
+ * InspectionId buď založí novou návštěvu (+ rovnou zkontroluje pravidly
+ * daného scénáře), přeskočí ji (beze změny obsahu), nebo aktualizuje a
+ * zkontroluje znovu (obsah, případně i scénář, se změnil).
  */
 export async function importVisitsFromFile(params: {
   waveId: string;
+  scenarioId: string;
   fileName: string;
   buffer: Buffer;
   uploadedById?: string;
 }): Promise<ImportResult> {
-  const { waveId, fileName, buffer, uploadedById } = params;
+  const { waveId, scenarioId, fileName, buffer, uploadedById } = params;
 
   const source = new ExcelCsvImportSource();
   const rows = await source.parse(buffer, fileName);
 
   const batch = await prisma.importBatch.create({
-    data: { waveId, fileName, uploadedById, rowsTotal: rows.length },
+    data: { waveId, scenarioId, fileName, uploadedById, rowsTotal: rows.length },
   });
 
   let rowsNew = 0;
@@ -46,6 +49,7 @@ export async function importVisitsFromFile(params: {
       const visit = await prisma.visit.create({
         data: {
           waveId,
+          scenarioId,
           inspectionId: row.inspectionId,
           contentHash,
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -58,7 +62,7 @@ export async function importVisitsFromFile(params: {
       continue;
     }
 
-    if (existing.contentHash === contentHash) {
+    if (existing.contentHash === contentHash && existing.scenarioId === scenarioId) {
       rowsSkipped++;
       continue;
     }
@@ -66,6 +70,7 @@ export async function importVisitsFromFile(params: {
     await prisma.visit.update({
       where: { id: existing.id },
       data: {
+        scenarioId,
         contentHash,
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         data: row.data as any,

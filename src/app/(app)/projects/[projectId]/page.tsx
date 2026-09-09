@@ -7,8 +7,8 @@ import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
 import { Textarea } from "@/components/ui/Textarea";
 import { Button } from "@/components/ui/Button";
-import { Layers, AlertTriangle } from "lucide-react";
-import { createWave, updateProject } from "./actions";
+import { Layers, AlertTriangle, Settings } from "lucide-react";
+import { createWave, updateProject, createScenarioTemplate } from "./actions";
 import { isProjectCodeStale, suggestedProjectCode } from "@/lib/projectCode";
 
 const MONTHS = [
@@ -26,10 +26,11 @@ const MONTHS = [
   "Prosinec",
 ];
 
-function formatWavePeriod(wave: { year: number | null; month: number | null }): string | null {
-  if (wave.year && wave.month) return `${MONTHS[wave.month - 1]} ${wave.year}`;
+function formatWavePeriod(wave: { year: number | null; months: number[] }): string | null {
+  const monthNames = wave.months.map((m) => MONTHS[m - 1]).filter(Boolean);
+  if (monthNames.length > 0 && wave.year) return `${monthNames.join(", ")} ${wave.year}`;
+  if (monthNames.length > 0) return monthNames.join(", ");
   if (wave.year) return String(wave.year);
-  if (wave.month) return MONTHS[wave.month - 1];
   return null;
 }
 
@@ -43,9 +44,14 @@ export default async function ProjectDetailPage({
   const project = await prisma.project.findUnique({
     where: { id: params.projectId },
     include: {
+      scenarioTemplates: { orderBy: { name: "asc" } },
       waves: {
         orderBy: { createdAt: "desc" },
-        include: { visits: { select: { id: true } }, importBatches: { select: { id: true } } },
+        include: {
+          visits: { select: { id: true } },
+          importBatches: { select: { id: true } },
+          scenarios: { select: { id: true } },
+        },
       },
     },
   });
@@ -142,31 +148,54 @@ export default async function ProjectDetailPage({
       </Card>
 
       <Card>
+        <h2 className="mb-1 text-sm font-semibold text-slate-900">Šablony scénářů</h2>
+        <p className="mb-4 text-sm text-slate-500">
+          Např. "Cestovní pojištění 2026", "Povinné ručení 2026" — z těchto šablon se pak ve vlně vybírají konkrétní
+          scénáře.
+        </p>
+        {project.scenarioTemplates.length > 0 && (
+          <div className="mb-4 flex flex-wrap gap-2">
+            {project.scenarioTemplates.map((template) => (
+              <Badge key={template.id} tone="neutral">
+                {template.name}
+              </Badge>
+            ))}
+          </div>
+        )}
+        <form action={createScenarioTemplate.bind(null, project.id)} className="flex flex-wrap items-end gap-4">
+          <div className="min-w-[240px] flex-1">
+            <Label htmlFor="templateName">Nová šablona scénáře</Label>
+            <Input id="templateName" name="templateName" placeholder="např. Cestovní pojištění 2026" required />
+          </div>
+          <Button type="submit" variant="secondary">
+            Přidat šablonu
+          </Button>
+        </form>
+      </Card>
+
+      <Card>
         <h2 className="mb-4 text-sm font-semibold text-slate-900">Nová vlna</h2>
-        <form action={createWave.bind(null, project.id)} className="flex flex-wrap items-end gap-4">
-          <div className="min-w-[200px] flex-1">
-            <Label htmlFor="name">Název vlny</Label>
-            <Input id="name" name="name" placeholder="např. Q1 2026" required />
+        <form action={createWave.bind(null, project.id)} className="space-y-4">
+          <div className="flex flex-wrap items-end gap-4">
+            <div className="min-w-[200px] flex-1">
+              <Label htmlFor="name">Název vlny</Label>
+              <Input id="name" name="name" placeholder="např. Q1 2026" required />
+            </div>
+            <div className="w-28">
+              <Label htmlFor="year">Rok (nepovinné)</Label>
+              <Input id="year" name="year" type="number" placeholder="2026" min={2000} max={2100} />
+            </div>
           </div>
-          <div className="w-28">
-            <Label htmlFor="year">Rok (nepovinné)</Label>
-            <Input id="year" name="year" type="number" placeholder="2026" min={2000} max={2100} />
-          </div>
-          <div className="w-40">
-            <Label htmlFor="month">Měsíc (nepovinné)</Label>
-            <select
-              id="month"
-              name="month"
-              defaultValue=""
-              className="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm text-slate-900 focus:border-brand-blue-400 focus:outline-none focus:ring-2 focus:ring-brand-blue-100"
-            >
-              <option value="">—</option>
+          <div>
+            <Label>Měsíce (nepovinné, jde vybrat víc — terén napříč měsíci)</Label>
+            <div className="mt-1 flex flex-wrap gap-x-4 gap-y-2">
               {MONTHS.map((label, index) => (
-                <option key={label} value={index + 1}>
+                <label key={label} className="flex items-center gap-1.5 text-sm text-slate-600">
+                  <input type="checkbox" name="months" value={index + 1} className="rounded border-slate-300" />
                   {label}
-                </option>
+                </label>
               ))}
-            </select>
+            </div>
           </div>
           <Button type="submit">Založit vlnu</Button>
         </form>
@@ -181,19 +210,35 @@ export default async function ProjectDetailPage({
             {project.waves.map((wave) => {
               const period = formatWavePeriod(wave);
               return (
-                <Link key={wave.id} href={`/projects/${project.id}/waves/${wave.id}`}>
-                  <Card className="h-full cursor-pointer">
-                    <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-brand-green-50 text-brand-green-600">
+                <Card key={wave.id} className="h-full">
+                  <div className="mb-3 flex items-center justify-between">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-brand-green-50 text-brand-green-600">
                       <Layers className="h-5 w-5" />
                     </div>
-                    <h3 className="font-semibold text-slate-900">{wave.name}</h3>
+                    <Link
+                      href={`/projects/${project.id}/waves/${wave.id}/settings`}
+                      className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+                      title="Nastavení vlny"
+                    >
+                      <Settings className="h-4 w-4" />
+                    </Link>
+                  </div>
+                  <Link href={`/projects/${project.id}/waves/${wave.id}`} className="block">
+                    <h3 className="font-semibold text-slate-900 hover:text-brand-blue-600">{wave.name}</h3>
                     {period && <p className="mt-1 text-sm text-slate-500">{period}</p>}
                     <div className="mt-4 flex flex-wrap gap-2">
+                      {wave.scenarios.length === 0 ? (
+                        <Badge tone="amber">Chybí scénář</Badge>
+                      ) : (
+                        <Badge tone="neutral">
+                          {wave.scenarios.length} {wave.scenarios.length === 1 ? "scénář" : "scénáře"}
+                        </Badge>
+                      )}
                       <Badge tone="neutral">{wave.visits.length} návštěv</Badge>
                       <Badge tone="neutral">{wave.importBatches.length} importů</Badge>
                     </div>
-                  </Card>
-                </Link>
+                  </Link>
+                </Card>
               );
             })}
           </div>

@@ -9,26 +9,26 @@ import { isValidProjectCode } from "@/lib/projectCode";
 export async function createWave(projectId: string, formData: FormData) {
   const name = String(formData.get("name") || "").trim();
   const yearRaw = String(formData.get("year") || "").trim();
-  const monthRaw = String(formData.get("month") || "").trim();
+  const months = formData
+    .getAll("months")
+    .map((value) => Number(value))
+    .filter((value) => Number.isInteger(value) && value >= 1 && value <= 12)
+    .sort((a, b) => a - b);
 
   if (!name) {
     redirect(`/projects/${projectId}?error=${encodeURIComponent("Vyplňte název vlny.")}`);
   }
 
   const year = yearRaw ? Number(yearRaw) : null;
-  const month = monthRaw ? Number(monthRaw) : null;
-
   if (year !== null && (!Number.isInteger(year) || year < 2000 || year > 2100)) {
     redirect(`/projects/${projectId}?error=${encodeURIComponent("Rok vlny není platný.")}`);
   }
-  if (month !== null && (!Number.isInteger(month) || month < 1 || month > 12)) {
-    redirect(`/projects/${projectId}?error=${encodeURIComponent("Měsíc vlny není platný.")}`);
-  }
 
-  const wave = await prisma.wave.create({ data: { projectId, name, year, month } });
+  const wave = await prisma.wave.create({ data: { projectId, name, year, months } });
 
   revalidatePath(`/projects/${projectId}`);
-  redirect(`/projects/${projectId}/waves/${wave.id}`);
+  // Po založení vlny je potřeba nejdřív nastavit scénář(e) - bez něj nejde nic importovat.
+  redirect(`/projects/${projectId}/waves/${wave.id}/settings`);
 }
 
 export async function updateProject(projectId: string, formData: FormData) {
@@ -74,4 +74,25 @@ export async function updateProject(projectId: string, formData: FormData) {
   revalidatePath(`/projects/${projectId}`);
   revalidatePath("/projects");
   revalidatePath("/");
+}
+
+export async function createScenarioTemplate(projectId: string, formData: FormData) {
+  const name = String(formData.get("templateName") || "").trim();
+
+  if (!name) {
+    redirect(`/projects/${projectId}?error=${encodeURIComponent("Vyplňte název šablony scénáře.")}`);
+  }
+
+  try {
+    await prisma.scenarioTemplate.create({ data: { projectId, name } });
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+      redirect(
+        `/projects/${projectId}?error=${encodeURIComponent("Šablona s tímto názvem už v projektu existuje.")}`
+      );
+    }
+    throw error;
+  }
+
+  revalidatePath(`/projects/${projectId}`);
 }

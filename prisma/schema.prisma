@@ -54,9 +54,28 @@ model Project {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  waves Wave[]
+  waves             Wave[]
+  scenarioTemplates ScenarioTemplate[]
 
   @@map("projects")
+}
+
+// Šablona scénáře patřící projektu (např. "Cestovní pojištění 2026",
+// "Povinné ručení 2026"). Ve vlně se z dostupných šablon projektu vybere
+// 1..N, čímž vzniknou konkrétní Scenario záznamy pro danou vlnu.
+model ScenarioTemplate {
+  id        String   @id @default(cuid())
+  projectId String
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name      String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  scenarios Scenario[]
+
+  @@unique([projectId, name])
+  @@map("scenario_templates")
 }
 
 model Wave {
@@ -65,32 +84,56 @@ model Wave {
   project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
   name      String
 
-  // nepovinné, jen pro snazší hledání/filtrování vln
-  year  Int?
-  month Int?
+  // nepovinné, jen pro snazší hledání/filtrování vln; terén může běžet
+  // napříč víc měsíci, proto pole (hodnoty 1-12)
+  year   Int?
+  months Int[] @default([])
 
   // volné nastavení vlny
   settings Json?
 
-  // strukturovaný scénář vlny (očekávaná pobočka, časové okno, klíčové otázky/odpovědi...)
-  // úmyslně JSON — pole se liší projekt od projektu, viz src/lib/rules
-  scenario Json?
-
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  scenarios     Scenario[]
   visits        Visit[]
   importBatches ImportBatch[]
-  rules         Rule[]
 
   @@map("waves")
 }
 
-// Jeden nahraný soubor dat, navázaný na vlnu.
+// Konkrétní scénář v rámci vlny — instance ScenarioTemplate s vlastními
+// strukturovanými poli (očekávaná pobočka, časové okno, klíčové otázky...)
+// a vlastními pravidly kontroly. Vlna jich může mít víc zároveň.
+model Scenario {
+  id                 String           @id @default(cuid())
+  waveId             String
+  wave               Wave             @relation(fields: [waveId], references: [id], onDelete: Cascade)
+  scenarioTemplateId String
+  scenarioTemplate   ScenarioTemplate @relation(fields: [scenarioTemplateId], references: [id])
+
+  // strukturovaná pole scénáře — JSON, protože se liší projekt od projektu
+  data Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  rules         Rule[]
+  visits        Visit[]
+  importBatches ImportBatch[]
+
+  @@unique([waveId, scenarioTemplateId])
+  @@map("scenarios")
+}
+
+// Jeden nahraný soubor dat. Patří vlně A konkrétnímu scénáři (při importu
+// se scénář vybírá ručně — všechny řádky v souboru se týkají jednoho scénáře).
 model ImportBatch {
   id            String   @id @default(cuid())
   waveId        String
   wave          Wave     @relation(fields: [waveId], references: [id], onDelete: Cascade)
+  scenarioId    String
+  scenario      Scenario @relation(fields: [scenarioId], references: [id])
   uploadedById  String?
   uploadedBy    User?    @relation(fields: [uploadedById], references: [id])
   fileName      String
@@ -106,10 +149,14 @@ model ImportBatch {
 }
 
 // Návštěva = jeden vyplněný report jednoho mystery shoppera = jeden řádek importu.
+// Patří konkrétnímu scénáři (podle scénáře vybraného při importu) — tím se
+// určí, jaká pravidla se nad ní spouští.
 model Visit {
-  id     String @id @default(cuid())
-  waveId String
-  wave   Wave   @relation(fields: [waveId], references: [id], onDelete: Cascade)
+  id         String   @id @default(cuid())
+  waveId     String
+  wave       Wave     @relation(fields: [waveId], references: [id], onDelete: Cascade)
+  scenarioId String
+  scenario   Scenario @relation(fields: [scenarioId], references: [id])
 
   // stabilní klíč napříč opakovanými importy
   inspectionId String
@@ -138,15 +185,18 @@ enum RuleType {
   ATTACHMENTS
 }
 
-// Pravidlo kontroly navázané na vlnu, nastavitelné v UI.
+// Pravidlo kontroly navázané na konkrétní scénář (ne na celou vlnu) —
+// každý scénář má svoje vlastní pravidla. Nové pravidla lze při založení
+// scénáře nakopírovat z jiného existujícího scénáře (viz copyRulesFromScenario
+// v src/app/(app)/projects/[projectId]/waves/[waveId]/actions.ts).
 model Rule {
-  id       String   @id @default(cuid())
-  waveId   String
-  wave     Wave     @relation(fields: [waveId], references: [id], onDelete: Cascade)
-  type     RuleType
-  name     String
-  config   Json
-  isActive Boolean  @default(true)
+  id         String   @id @default(cuid())
+  scenarioId String
+  scenario   Scenario @relation(fields: [scenarioId], references: [id], onDelete: Cascade)
+  type       RuleType
+  name       String
+  config     Json
+  isActive   Boolean  @default(true)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
