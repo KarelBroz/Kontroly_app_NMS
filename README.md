@@ -76,7 +76,8 @@ Appka poběží na http://localhost:3000. První účet si založíš na `/regis
    - `NEXT_PUBLIC_APP_URL` — veřejná URL appky
    - `RESEND_API_KEY` — API klíč z [resend.com](https://resend.com) (jinak nepůjde odesílat e-maily pro obnovení hesla)
    - `MAIL_FROM` — odesílací adresa, do ověření vlastní domény v Resendu stačí `Kontroly MS <onboarding@resend.dev>`
-4. Build krok (`npm run build`) při každém deployi spustí `prisma generate` a `prisma db push`, takže databázové schéma se drží synchronizované automaticky, bez nutnosti ručně spouštět migrace. Pro ostrý provoz s víc daty doporučujeme časem přejít na `prisma migrate deploy` s verzovanými migracemi.
+4. Build krok (`npm run build`) při každém deployi spustí `prisma generate` a `prisma db push --accept-data-loss`, takže databázové schéma se drží synchronizované automaticky, bez nutnosti ručně spouštět migrace.
+   ⚠️ **`--accept-data-loss` je kompromis pro tuhle fázi vývoje** — bez něj `db push` odmítne i neškodné změny (např. přidání `UNIQUE` na sloupec, kde existující řádky mají `NULL`), a build spadne. Jakmile v appce budou reálná klientská data, **přejdi na `prisma migrate deploy` s verzovanými migračními soubory** (vyžaduje generovat migrace přes `prisma migrate dev` — tedy Node.js lokálně, nebo řízeně přes CI), ať žádná schema změna nemůže tiše smazat produkční data.
 
 Appka nemá natvrdo zadanou doménu — vše jde přes env proměnné (`NEXT_PUBLIC_APP_URL`, `NEXTAUTH_URL`), takže napojení na jiný web NMS půjde udělat bez zásahu do kódu.
 
