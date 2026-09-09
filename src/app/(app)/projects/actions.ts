@@ -18,7 +18,7 @@ export async function createProject(formData: FormData) {
 
   if (!name || !client || !code || !projectManager || !accountManager) {
     redirect(
-      `/projects?error=${encodeURIComponent(
+      `/projects/new?error=${encodeURIComponent(
         "Vyplňte název projektu, klienta, kód projektu, projektového manažera a account manažera."
       )}`
     );
@@ -26,7 +26,7 @@ export async function createProject(formData: FormData) {
 
   if (!isValidProjectCode(code)) {
     redirect(
-      `/projects?error=${encodeURIComponent("Kód projektu musí být ve formátu CZ26222 (písmena + rok + číslo).")}`
+      `/projects/new?error=${encodeURIComponent("Kód projektu musí být ve formátu CZ26222 (písmena + rok + číslo).")}`
     );
   }
 
@@ -37,7 +37,7 @@ export async function createProject(formData: FormData) {
     });
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
-      redirect(`/projects?error=${encodeURIComponent("Tento kód projektu už existuje u jiného projektu.")}`);
+      redirect(`/projects/new?error=${encodeURIComponent("Tento kód projektu už existuje u jiného projektu.")}`);
     }
     throw error;
   }

@@ -34,7 +34,7 @@ export default async function HomePage() {
           </h1>
           <p className="mt-1 text-sm text-slate-500">Přehled projektů a poslední aktivity.</p>
         </div>
-        <Link href="/projects">
+        <Link href="/projects/new">
           <Button>
             <Plus className="h-4 w-4" />
             Nový projekt
@@ -47,7 +47,7 @@ export default async function HomePage() {
         {projects.length === 0 ? (
           <Card className="text-center text-sm text-slate-500">
             Zatím žádné projekty.{" "}
-            <Link href="/projects" className="font-medium text-brand-blue-600">
+            <Link href="/projects/new" className="font-medium text-brand-blue-600">
               Založit první projekt →
             </Link>
           </Card>
