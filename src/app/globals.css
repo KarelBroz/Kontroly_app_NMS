@@ -14,3 +14,19 @@ body {
 body {
   @apply bg-slate-50 text-slate-900 antialiased;
 }
+
+/* Proklik do Navigátoru (majáček) — krátké žluté zablikání po kliknutí, viz src/components/ui/NavigatorLink.tsx */
+@keyframes lighthouse-flash {
+  0% {
+    opacity: 0;
+    transform: translateY(3px) scale(0.5);
+  }
+  35% {
+    opacity: 1;
+    transform: translateY(-2px) scale(1.15);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-7px) scale(0.6);
+  }
+}

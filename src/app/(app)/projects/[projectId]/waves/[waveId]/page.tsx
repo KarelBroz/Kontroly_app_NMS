@@ -5,12 +5,14 @@ import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Label } from "@/components/ui/Label";
 import { Button } from "@/components/ui/Button";
-import { CheckCircle2, XCircle, RefreshCw, Settings, AlertTriangle, ExternalLink, Trash2 } from "lucide-react";
+import { CheckCircle2, XCircle, RefreshCw, Settings, AlertTriangle, Trash2 } from "lucide-react";
 import { FindingStatus, RuleType, SystemCheckType } from "@prisma/client";
 import type { BadgeTone } from "@/components/ui/Badge";
 import { RULE_TYPE_LABELS, SYSTEM_CHECK_LABELS } from "@/lib/rules/labels";
 import { isVisitDataEmpty } from "@/lib/visits/emptyVisit";
 import { ConfirmSubmitButton } from "@/components/ui/ConfirmSubmitButton";
+import { NavigatorLink } from "@/components/ui/NavigatorLink";
+import { buildNavigatorUrl } from "@/lib/navigator";
 import { cn } from "@/lib/utils";
 import { importWaveFile, rerunWave, updateFindingStatus, deleteImportBatch } from "./actions";
 
@@ -58,17 +60,21 @@ function GrammarContext({ context, errorWord }: { context: string; errorWord: st
   );
 }
 
-/** Zatím bez skutečné URL (přijde později) — jen rezervované místo + tlačítko. */
-function OpenInSourceButton() {
-  return (
-    <span
-      className="inline-flex shrink-0 cursor-not-allowed items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-400"
-      title="Proklik do Navigátoru — URL zatím není nastavená"
-    >
-      <ExternalLink className="h-3.5 w-3.5" />
-      Otevřít v Navigátoru
-    </span>
-  );
+/** Kód otázky, ke které nález patří (pro proklik do Navigátoru rovnou na správné místo) — kontrola data terénu se žádné konkrétní otázky netýká. */
+function findingQuestionCode(finding: {
+  rule: { config: unknown } | null;
+  systemCheck: SystemCheckType | null;
+  details: unknown;
+}): string | null {
+  if (finding.rule) {
+    const config = finding.rule.config as { questionCode?: string } | null;
+    return config?.questionCode?.trim() || null;
+  }
+  if (finding.systemCheck === SystemCheckType.GRAMMAR) {
+    const details = finding.details as { field?: string } | null;
+    return details?.field?.split(":")[0]?.trim() || null;
+  }
+  return null;
 }
 
 export default async function WaveDetailPage({
@@ -279,7 +285,6 @@ export default async function WaveDetailPage({
                             · {visit.scenario.scenarioTemplate.name} · zatím bez odpovědí
                           </span>
                         </div>
-                        <OpenInSourceButton />
                       </div>
                     );
                   }
@@ -298,7 +303,6 @@ export default async function WaveDetailPage({
                             </Badge>
                           )}
                         </div>
-                        <OpenInSourceButton />
                       </div>
 
                       {visit.findings.length === 0 ? (
@@ -314,6 +318,13 @@ export default async function WaveDetailPage({
                                 ? (finding.details as GrammarDetails | null)
                                 : null;
                             const isOpen = finding.status === FindingStatus.OPEN;
+                            const navigatorHref = wave.project.navigatorCode
+                              ? buildNavigatorUrl(
+                                  visit.inspectionId,
+                                  wave.project.navigatorCode,
+                                  findingQuestionCode(finding)
+                                )
+                              : null;
 
                             return (
                               <div
@@ -348,7 +359,11 @@ export default async function WaveDetailPage({
                                     </Badge>
                                   </div>
                                 </div>
-                                <div className="flex shrink-0 items-center gap-1">
+                                <div className="flex shrink-0 items-center gap-1.5">
+                                  <NavigatorLink
+                                    href={navigatorHref}
+                                    storageKey={`navigator-visited:${finding.id}`}
+                                  />
                                   <form
                                     action={updateFindingStatus.bind(
                                       null,
