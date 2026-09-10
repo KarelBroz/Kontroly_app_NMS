@@ -183,7 +183,14 @@ export async function createTemplateAndAddScenario(projectId: string, waveId: st
   redirect(`${settingsPath(projectId, waveId)}?saved=${encodeURIComponent("Scénář přidán")}`);
 }
 
-export async function updateScenarioData(
+/**
+ * Uloží okno terénu SCÉNÁŘE a zároveň aktivitu všech jeho existujících
+ * pravidel (checkboxy "Aktivní" v UI) v jednom submitu — ať se nemusí
+ * ukládat každá drobná změna zvlášť. Přidání nového pravidla / smazání
+ * existujícího jde přes formAction stejného formuláře na jiné akce
+ * (createRule / deleteRule), viz WaveSettingsPage.
+ */
+export async function updateScenarioSettings(
   projectId: string,
   waveId: string,
   scenarioId: string,
@@ -203,7 +210,17 @@ export async function updateScenarioData(
     },
   });
 
-  // okno terénu ovlivňuje automatickou kontrolu data (RealDate) u už naimportovaných návštěv
+  const rules = await prisma.rule.findMany({ where: { scenarioId }, select: { id: true } });
+  await Promise.all(
+    rules.map((rule) =>
+      prisma.rule.update({
+        where: { id: rule.id },
+        data: { isActive: formData.has(`active_${rule.id}`) },
+      })
+    )
+  );
+
+  // okno terénu i (de)aktivace pravidel ovlivňuje kontrolu už naimportovaných návštěv
   await rerunRulesForScenario(scenarioId);
 
   revalidatePath(settingsPath(projectId, waveId));
@@ -291,12 +308,6 @@ export async function createRule(projectId: string, waveId: string, scenarioId: 
   revalidatePath(settingsPath(projectId, waveId));
   revalidatePath(wavePath(projectId, waveId));
   redirect(`${settingsPath(projectId, waveId)}?saved=${encodeURIComponent("Pravidlo přidáno")}`);
-}
-
-export async function toggleRule(projectId: string, waveId: string, ruleId: string, isActive: boolean) {
-  await prisma.rule.update({ where: { id: ruleId }, data: { isActive } });
-  revalidatePath(settingsPath(projectId, waveId));
-  redirect(`${settingsPath(projectId, waveId)}?saved=1`);
 }
 
 export async function deleteRule(projectId: string, waveId: string, ruleId: string) {

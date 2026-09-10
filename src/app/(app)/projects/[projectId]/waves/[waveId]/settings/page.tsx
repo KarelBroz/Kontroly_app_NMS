@@ -8,14 +8,14 @@ import { Label } from "@/components/ui/Label";
 import { Button } from "@/components/ui/Button";
 import { Trash2 } from "lucide-react";
 import { RULE_TYPE_LABELS } from "@/lib/rules/labels";
+import { RuleTypeField } from "@/components/rules/RuleTypeField";
 import {
   updateWaveInfo,
   addScenario,
   createTemplateAndAddScenario,
-  updateScenarioData,
+  updateScenarioSettings,
   removeScenario,
   createRule,
-  toggleRule,
   deleteRule,
 } from "../actions";
 
@@ -146,9 +146,13 @@ export default async function WaveSettingsPage({
                     )}
                   </div>
 
+                  {/* Jeden formulář pro celý scénář — Start/Konec terénu i aktivita pravidel se uloží
+                      najednou tlačítkem "Uložit" dole. Přidání/smazání pravidla používá formAction
+                      na jinou akci (createRule/deleteRule), takže proběhne okamžitě bez ohledu na
+                      to, co je zrovna rozepsané v ostatních polích. */}
                   <form
-                    action={updateScenarioData.bind(null, wave.projectId, wave.id, scenario.id)}
-                    className="space-y-4"
+                    action={updateScenarioSettings.bind(null, wave.projectId, wave.id, scenario.id)}
+                    className="space-y-6"
                   >
                     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                       <div>
@@ -174,89 +178,66 @@ export default async function WaveSettingsPage({
                       Datum a čas návštěvy (sloupec "RealDate" v datech) se proti tomuhle oknu kontroluje
                       automaticky u každého importu.
                     </p>
-                    <Button type="submit" size="sm">
-                      Uložit scénář
-                    </Button>
-                  </form>
-
-                  <div className="mt-6 border-t border-slate-100 pt-6">
-                    <h4 className="mb-1 text-sm font-semibold text-slate-900">Pravidla kontroly</h4>
-                    <p className="mb-3 text-xs text-slate-500">
-                      Kód otázky = část názvu sloupce před dvojtečkou (např. u sloupce "X20: Délka celé návštěvy
-                      (minuty)" je kód otázky "X20").
-                    </p>
-                    <form
-                      action={createRule.bind(null, wave.projectId, wave.id, scenario.id)}
-                      className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4"
-                    >
-                      <div>
-                        <Label htmlFor={`questionCode-${scenario.id}`}>Kód otázky</Label>
-                        <Input id={`questionCode-${scenario.id}`} name="questionCode" placeholder="X20" required />
-                      </div>
-                      <div>
-                        <Label htmlFor={`ruleType-${scenario.id}`}>Typ</Label>
-                        <select
-                          id={`ruleType-${scenario.id}`}
-                          name="type"
-                          required
-                          className="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm text-slate-900 focus:border-brand-blue-400 focus:outline-none focus:ring-2 focus:ring-brand-blue-100"
-                        >
-                          <option value="REQUIRED">{RULE_TYPE_LABELS.REQUIRED}</option>
-                          <option value="ALLOWED_VALUES">{RULE_TYPE_LABELS.ALLOWED_VALUES}</option>
-                          <option value="NUMERIC_RANGE">{RULE_TYPE_LABELS.NUMERIC_RANGE}</option>
-                        </select>
-                      </div>
-                      <div className="lg:col-span-2">
-                        <Label htmlFor={`allowedValue-${scenario.id}`}>Povolená hodnota</Label>
-                        <Input
-                          id={`allowedValue-${scenario.id}`}
-                          name="allowedValue"
-                          placeholder='např. "Ano, Spíše ano" nebo "0-180"'
-                        />
-                      </div>
-                      <div className="sm:col-span-2 lg:col-span-4">
-                        <p className="mb-2 text-xs text-slate-400">
-                          Povolená hodnota se použije jen u typů "Povolené hodnoty" (seznam oddělený čárkou) a
-                          "Číselný rozsah" (formát min-max, např. 0-180) — u "Povinné pole" se ignoruje.
-                        </p>
-                        <Button type="submit" size="sm" variant="secondary">
-                          Přidat pravidlo
-                        </Button>
-                      </div>
-                    </form>
 
                     {scenario.rules.length > 0 && (
-                      <div className="mt-4 divide-y divide-slate-100 border-t border-slate-100">
-                        {scenario.rules.map((rule) => (
-                          <div key={rule.id} className="flex items-center justify-between py-3 text-sm">
-                            <div>
-                              <span className="font-medium text-slate-900">{rule.name}</span>{" "}
-                              <Badge tone="blue" className="ml-2">
-                                {RULE_TYPE_LABELS[rule.type]}
-                              </Badge>
-                              {!rule.isActive && (
-                                <Badge tone="neutral" className="ml-2">
-                                  Neaktivní
-                                </Badge>
-                              )}
+                      <div>
+                        <h4 className="mb-2 text-sm font-semibold text-slate-900">Pravidla kontroly</h4>
+                        <div className="divide-y divide-slate-100 rounded-xl border border-slate-100">
+                          {scenario.rules.map((rule) => (
+                            <div key={rule.id} className="flex items-center justify-between gap-3 px-3 py-2.5">
+                              <label className="flex items-center gap-2 text-sm">
+                                <input
+                                  type="checkbox"
+                                  name={`active_${rule.id}`}
+                                  defaultChecked={rule.isActive}
+                                  className="rounded border-slate-300"
+                                />
+                                <span className="font-medium text-slate-900">{rule.name}</span>
+                                <Badge tone="blue">{RULE_TYPE_LABELS[rule.type]}</Badge>
+                              </label>
+                              <Button
+                                type="submit"
+                                formAction={deleteRule.bind(null, wave.projectId, wave.id, rule.id)}
+                                variant="ghost"
+                                size="sm"
+                              >
+                                Smazat
+                              </Button>
                             </div>
-                            <div className="flex gap-2">
-                              <form action={toggleRule.bind(null, wave.projectId, wave.id, rule.id, !rule.isActive)}>
-                                <Button type="submit" variant="secondary" size="sm">
-                                  {rule.isActive ? "Deaktivovat" : "Aktivovat"}
-                                </Button>
-                              </form>
-                              <form action={deleteRule.bind(null, wave.projectId, wave.id, rule.id)}>
-                                <Button type="submit" variant="ghost" size="sm">
-                                  Smazat
-                                </Button>
-                              </form>
-                            </div>
-                          </div>
-                        ))}
+                          ))}
+                        </div>
+                        <p className="mt-1.5 text-xs text-slate-400">
+                          Odškrtnutím pravidlo dočasně vypneš — uloží se spolu se vším ostatním tlačítkem "Uložit"
+                          dole.
+                        </p>
                       </div>
                     )}
-                  </div>
+
+                    <div className="border-t border-slate-100 pt-6">
+                      <h4 className="mb-1 text-sm font-semibold text-slate-900">Přidat nové pravidlo</h4>
+                      <p className="mb-3 text-xs text-slate-500">
+                        Kód otázky = část názvu sloupce před dvojtečkou (např. u sloupce "X20: Délka celé návštěvy
+                        (minuty)" je kód otázky "X20").
+                      </p>
+                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                        <RuleTypeField idPrefix={scenario.id} />
+                        <div className="sm:col-span-2 lg:col-span-4">
+                          <Button
+                            type="submit"
+                            formAction={createRule.bind(null, wave.projectId, wave.id, scenario.id)}
+                            variant="secondary"
+                            size="sm"
+                          >
+                            Přidat pravidlo
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex justify-end border-t border-slate-100 pt-6">
+                      <Button type="submit">Uložit</Button>
+                    </div>
+                  </form>
                 </Card>
               );
             })}
