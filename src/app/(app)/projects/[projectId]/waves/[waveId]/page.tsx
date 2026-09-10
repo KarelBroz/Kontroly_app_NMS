@@ -5,21 +5,16 @@ import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Label } from "@/components/ui/Label";
 import { Button } from "@/components/ui/Button";
-import { CheckCircle2, XCircle, RefreshCw, Settings, AlertTriangle } from "lucide-react";
+import { CheckCircle2, XCircle, RefreshCw, Settings, AlertTriangle, ExternalLink } from "lucide-react";
 import { FindingStatus, RuleType, SystemCheckType } from "@prisma/client";
 import { RULE_TYPE_LABELS, SYSTEM_CHECK_LABELS } from "@/lib/rules/labels";
+import { isVisitDataEmpty } from "@/lib/visits/emptyVisit";
 import { importWaveFile, rerunWave, updateFindingStatus } from "./actions";
 
 const SEVERITY_TONE: Record<string, "green" | "amber" | "red"> = {
   LOW: "green",
   MEDIUM: "amber",
   HIGH: "red",
-};
-
-const STATUS_LABELS: Record<string, string> = {
-  OPEN: "Otevřeno",
-  RESOLVED: "Vyřešeno",
-  IGNORED: "Ignorováno",
 };
 
 function findingTypeLabel(finding: { rule: { type: RuleType } | null; systemCheck: SystemCheckType | null }) {
@@ -49,6 +44,19 @@ function GrammarContext({ context, errorWord }: { context: string; errorWord: st
   );
 }
 
+/** Zatím bez skutečné URL (přijde později) — jen rezervované místo + tlačítko. */
+function OpenInSourceButton() {
+  return (
+    <span
+      className="inline-flex shrink-0 cursor-not-allowed items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-400"
+      title="Proklik na zdrojová data — URL zatím není nastavená"
+    >
+      <ExternalLink className="h-3.5 w-3.5" />
+      Otevřít v systému
+    </span>
+  );
+}
+
 export default async function WaveDetailPage({
   params,
   searchParams,
@@ -65,7 +73,7 @@ export default async function WaveDetailPage({
         orderBy: { updatedAt: "desc" },
         include: {
           scenario: { include: { scenarioTemplate: true } },
-          findings: { include: { rule: true }, orderBy: { createdAt: "desc" } },
+          findings: { include: { rule: true }, orderBy: { createdAt: "asc" } },
         },
       },
       importBatches: {
@@ -78,8 +86,30 @@ export default async function WaveDetailPage({
 
   if (!wave || wave.projectId !== params.projectId) notFound();
 
-  const allFindings = wave.visits.flatMap((visit) => visit.findings.map((finding) => ({ ...finding, visit })));
+  const allFindings = wave.visits.flatMap((visit) => visit.findings);
   const importedParts = searchParams.imported?.split("-") ?? null;
+
+  // Návštěvy: chybové nahoře (od nejvíc problémových), čisté uprostřed,
+  // bez odpovědí (MS založené, terén zatím neproběhl) šedě úplně dole.
+  const emptyVisits: typeof wave.visits = [];
+  const errorVisits: typeof wave.visits = [];
+  const cleanVisits: typeof wave.visits = [];
+
+  for (const visit of wave.visits) {
+    if (isVisitDataEmpty(visit.data as Record<string, unknown>)) {
+      emptyVisits.push(visit);
+    } else if (visit.findings.some((f) => f.status === FindingStatus.OPEN)) {
+      errorVisits.push(visit);
+    } else {
+      cleanVisits.push(visit);
+    }
+  }
+  errorVisits.sort(
+    (a, b) =>
+      b.findings.filter((f) => f.status === FindingStatus.OPEN).length -
+      a.findings.filter((f) => f.status === FindingStatus.OPEN).length
+  );
+  const orderedVisits = [...errorVisits, ...cleanVisits, ...emptyVisits];
 
   return (
     <div className="space-y-10">
@@ -189,84 +219,129 @@ export default async function WaveDetailPage({
             )}
           </Card>
 
-          {/* Nálezy */}
+          {/* Nálezy — po návštěvách, chybové nahoře, bez odpovědí šedě dole */}
           <Card className="p-0">
-            <div className="border-b border-slate-100 px-6 py-4">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-6 py-4">
               <h2 className="text-base font-semibold text-slate-900">Nálezy</h2>
+              {wave.visits.length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  <Badge tone="red">{errorVisits.length} s nálezy</Badge>
+                  <Badge tone="green">{cleanVisits.length} bez nálezů</Badge>
+                  {emptyVisits.length > 0 && <Badge tone="neutral">{emptyVisits.length} bez odpovědí</Badge>}
+                </div>
+              )}
             </div>
-            {allFindings.length === 0 ? (
-              <p className="px-6 py-6 text-sm text-slate-500">Zatím žádné nálezy.</p>
+            {orderedVisits.length === 0 ? (
+              <p className="px-6 py-6 text-sm text-slate-500">Zatím žádné návštěvy.</p>
             ) : (
               <div className="divide-y divide-slate-100">
-                {allFindings.map((finding) => {
-                  const grammarDetails =
-                    finding.systemCheck === SystemCheckType.GRAMMAR
-                      ? (finding.details as GrammarDetails | null)
-                      : null;
+                {orderedVisits.map((visit) => {
+                  const isEmpty = isVisitDataEmpty(visit.data as Record<string, unknown>);
+
+                  if (isEmpty) {
+                    return (
+                      <div
+                        key={visit.id}
+                        className="flex flex-wrap items-center justify-between gap-3 px-6 py-3 text-slate-400"
+                      >
+                        <div className="flex items-center gap-2 text-sm">
+                          <span className="font-medium">{visit.inspectionId}</span>
+                          <span className="text-xs">
+                            · {visit.scenario.scenarioTemplate.name} · zatím bez odpovědí
+                          </span>
+                        </div>
+                        <OpenInSourceButton />
+                      </div>
+                    );
+                  }
+
+                  const openFindings = visit.findings.filter((f) => f.status === FindingStatus.OPEN);
 
                   return (
-                  <div key={finding.id} className="flex items-center justify-between gap-4 px-6 py-4">
-                    <div>
-                      <p className="text-sm font-medium text-slate-900">
-                        {finding.visit.inspectionId}{" "}
-                        <span className="font-normal text-slate-400">
-                          · {finding.visit.scenario.scenarioTemplate.name}
-                        </span>
-                      </p>
-                      {grammarDetails?.context ? (
-                        <p className="mt-0.5 text-sm text-slate-600">
-                          {grammarDetails.field && (
-                            <span className="font-medium text-slate-700">{grammarDetails.field}: </span>
+                    <div key={visit.id} className="px-6 py-4">
+                      <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-semibold text-slate-900">{visit.inspectionId}</span>
+                          <span className="text-xs text-slate-400">· {visit.scenario.scenarioTemplate.name}</span>
+                          {openFindings.length > 0 && (
+                            <Badge tone="red">
+                              {openFindings.length} {openFindings.length === 1 ? "nález" : "nálezy"}
+                            </Badge>
                           )}
-                          <GrammarContext context={grammarDetails.context} errorWord={grammarDetails.errorWord ?? ""} />
-                          {grammarDetails.reason && (
-                            <span className="ml-1 text-xs text-slate-400">({grammarDetails.reason})</span>
-                          )}
+                        </div>
+                        <OpenInSourceButton />
+                      </div>
+
+                      {visit.findings.length === 0 ? (
+                        <p className="flex items-center gap-1.5 text-sm text-brand-green-700">
+                          <CheckCircle2 className="h-4 w-4" />
+                          Bez nálezů
                         </p>
                       ) : (
-                        <p className="mt-0.5 text-sm text-slate-600">{finding.message}</p>
+                        <div className="space-y-1.5">
+                          {visit.findings.map((finding) => {
+                            const grammarDetails =
+                              finding.systemCheck === SystemCheckType.GRAMMAR
+                                ? (finding.details as GrammarDetails | null)
+                                : null;
+                            const isOpen = finding.status === FindingStatus.OPEN;
+
+                            return (
+                              <div
+                                key={finding.id}
+                                className="flex items-center justify-between gap-3 rounded-xl bg-slate-50 px-3 py-2"
+                              >
+                                <div className="min-w-0 flex-1">
+                                  {grammarDetails?.context ? (
+                                    <p className="text-sm text-slate-700">
+                                      {grammarDetails.field && (
+                                        <span className="font-medium">{grammarDetails.field}: </span>
+                                      )}
+                                      <GrammarContext
+                                        context={grammarDetails.context}
+                                        errorWord={grammarDetails.errorWord ?? ""}
+                                      />
+                                      {grammarDetails.reason && (
+                                        <span className="ml-1 text-xs text-slate-400">
+                                          ({grammarDetails.reason})
+                                        </span>
+                                      )}
+                                    </p>
+                                  ) : (
+                                    <p className="text-sm text-slate-700">{finding.message}</p>
+                                  )}
+                                  <div className="mt-1 flex flex-wrap gap-1.5">
+                                    <Badge tone={SEVERITY_TONE[finding.severity]}>{finding.severity}</Badge>
+                                    <Badge tone="neutral">{findingTypeLabel(finding)}</Badge>
+                                  </div>
+                                </div>
+                                <form
+                                  action={updateFindingStatus.bind(
+                                    null,
+                                    wave.projectId,
+                                    wave.id,
+                                    finding.id,
+                                    isOpen ? FindingStatus.RESOLVED : FindingStatus.OPEN
+                                  )}
+                                >
+                                  <button
+                                    type="submit"
+                                    title={isOpen ? "Označit jako opraveno" : "Označit jako chybu (znovu otevřít)"}
+                                    className="shrink-0 rounded-full p-1 hover:bg-slate-200"
+                                  >
+                                    {isOpen ? (
+                                      <XCircle className="h-5 w-5 text-red-500" />
+                                    ) : (
+                                      <CheckCircle2 className="h-5 w-5 text-brand-green-600" />
+                                    )}
+                                  </button>
+                                </form>
+                              </div>
+                            );
+                          })}
+                        </div>
                       )}
-                      <div className="mt-2 flex gap-2">
-                        <Badge tone={SEVERITY_TONE[finding.severity]}>{finding.severity}</Badge>
-                        <Badge tone="neutral">{findingTypeLabel(finding)}</Badge>
-                        <Badge tone={finding.status === FindingStatus.OPEN ? "red" : "green"}>
-                          {STATUS_LABELS[finding.status]}
-                        </Badge>
-                      </div>
                     </div>
-                    {finding.status === FindingStatus.OPEN && (
-                      <div className="flex shrink-0 gap-2">
-                        <form
-                          action={updateFindingStatus.bind(
-                            null,
-                            wave.projectId,
-                            wave.id,
-                            finding.id,
-                            FindingStatus.RESOLVED
-                          )}
-                        >
-                          <Button type="submit" variant="secondary" size="sm">
-                            <CheckCircle2 className="h-4 w-4" />
-                            Vyřešeno
-                          </Button>
-                        </form>
-                        <form
-                          action={updateFindingStatus.bind(
-                            null,
-                            wave.projectId,
-                            wave.id,
-                            finding.id,
-                            FindingStatus.IGNORED
-                          )}
-                        >
-                          <Button type="submit" variant="ghost" size="sm">
-                            <XCircle className="h-4 w-4" />
-                            Ignorovat
-                          </Button>
-                        </form>
-                      </div>
-                    )}
-                  </div>
                   );
                 })}
               </div>
