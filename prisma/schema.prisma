@@ -37,6 +37,22 @@ model PasswordResetToken {
   @@map("password_reset_tokens")
 }
 
+// Rozpracovaná registrace, dokud si uživatel neověří e-mail 6místným kódem.
+// User se založí, teprve až kód sedí — tím se ověří, že @nms.eu adresu
+// opravdu vlastní (jinak by šlo napsat libovolnou vymyšlenou adresu).
+model PendingRegistration {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String
+  passwordHash String
+  codeHash     String
+  attempts     Int      @default(0)
+  expiresAt    DateTime
+  createdAt    DateTime @default(now())
+
+  @@map("pending_registrations")
+}
+
 model Project {
   id          String   @id @default(cuid())
   name        String

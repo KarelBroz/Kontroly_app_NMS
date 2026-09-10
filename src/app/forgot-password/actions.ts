@@ -2,20 +2,11 @@
 
 import { prisma } from "@/lib/prisma";
 import { redirect } from "next/navigation";
-import { headers } from "next/headers";
 import { generateResetToken } from "@/lib/auth/tokens";
 import { sendMail } from "@/lib/mail/sendMail";
+import { getBaseUrl } from "@/lib/baseUrl";
 
 const RESET_TOKEN_TTL_MINUTES = 60;
-
-function getBaseUrl(): string {
-  const envUrl = process.env.NEXT_PUBLIC_APP_URL;
-  if (envUrl) return envUrl.replace(/\/+$/, "");
-
-  const host = headers().get("host") ?? "";
-  const protocol = host.startsWith("localhost") ? "http" : "https";
-  return `${protocol}://${host}`;
-}
 
 export async function requestPasswordReset(formData: FormData) {
   const email = String(formData.get("email") || "")
