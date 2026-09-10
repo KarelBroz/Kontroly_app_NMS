@@ -90,7 +90,7 @@ export function NavigatorLink({ href, storageKey }: { href: string | null; stora
           <span className="pointer-events-none absolute -top-1 right-0 h-1.5 w-1.5 rounded-full bg-amber-400 [animation:lighthouse-flash_0.9s_ease-out_0.15s]" />
         </>
       )}
-      <Lighthouse className="h-4 w-4" />
+      <LighthouseIcon className="h-4 w-4" />
     </a>
   );
 }
