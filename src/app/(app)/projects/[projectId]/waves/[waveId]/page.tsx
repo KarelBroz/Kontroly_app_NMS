@@ -253,7 +253,10 @@ export default async function WaveDetailPage({
                 <div className="flex flex-wrap gap-2">
                   <Badge tone="neutral">{wave.visits.length} MS celkem</Badge>
                   <Badge tone="red">{errorVisits.length} MS s chybou</Badge>
-                  <Badge tone="green">{cleanVisits.length + emptyVisits.length} MS bez chyby</Badge>
+                  <Badge tone="green">{cleanVisits.length} MS bez chyby</Badge>
+                  {emptyVisits.length > 0 && (
+                    <Badge tone="neutral">{emptyVisits.length} MS bez odpovědí</Badge>
+                  )}
                 </div>
               )}
             </div>
