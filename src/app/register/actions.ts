@@ -1,6 +1,7 @@
 "use server";
 
 import { prisma } from "@/lib/prisma";
+import { Prisma } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import { redirect } from "next/navigation";
 import { generateSixDigitCode, hashToken } from "@/lib/auth/tokens";
@@ -49,6 +50,23 @@ export async function registerUser(formData: FormData) {
 
   const passwordHash = await bcrypt.hash(password, 10);
   const name = `${firstName} ${lastName}`.trim();
+
+  // Předem povolený e-mail (nastaveno ručně na /users) — identitu v tomhle
+  // případě ověřil člověk, co adresu přidal, takže se účet založí rovnou
+  // bez ověřovacího kódu.
+  const allowed = await prisma.allowedRegistrationEmail.findUnique({ where: { email } });
+  if (allowed) {
+    try {
+      await prisma.user.create({ data: { email, name, passwordHash } });
+    } catch (error) {
+      if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+        redirect(`/register?error=${encodeURIComponent("Uživatel s tímto e-mailem už existuje.")}`);
+      }
+      throw error;
+    }
+    redirect("/login?registered=1");
+  }
+
   const code = generateSixDigitCode();
 
   // upsert podle e-mailu — nová registrace stejné adresy jednoduše nahradí předchozí nedokončenou.

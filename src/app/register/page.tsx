@@ -11,7 +11,8 @@ export default function RegisterPage({ searchParams }: { searchParams: { error?:
         </div>
 
         <p className="mb-4 rounded-lg bg-brand-blue-50 px-3 py-2 text-sm text-brand-blue-700">
-          Registrace je možná pouze s NMS e-mailovou adresou (@nms.eu). Na zadanou adresu ti pošleme ověřovací kód.
+          Registrace je možná pouze s NMS e-mailovou adresou (@nms.eu). Pokud je tvůj e-mail předem povolený,
+          účet se založí rovnou — jinak ti pošleme ověřovací kód.
         </p>
 
         {searchParams.error && (
@@ -73,7 +74,7 @@ export default function RegisterPage({ searchParams }: { searchParams: { error?:
             type="submit"
             className="w-full rounded-xl bg-brand-blue-500 px-4 py-2.5 text-sm font-medium text-white hover:bg-brand-blue-600"
           >
-            Odeslat ověřovací kód
+            Pokračovat
           </button>
         </form>
         <p className="mt-6 text-center text-sm text-slate-500">

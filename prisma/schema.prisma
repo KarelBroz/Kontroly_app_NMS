@@ -53,6 +53,19 @@ model PendingRegistration {
   @@map("pending_registrations")
 }
 
+// Ručně (v appce, na /users) předem povolené e-maily — kdo je na seznamu,
+// založí si účet rovnou bez ověřovacího kódu (identitu v tomhle případě
+// ověřuje člověk, co adresu přidal, ne appka přes e-mail). Zůstává jako
+// rychlá cesta i po zprovoznění e-mailů, ne jen dočasná náhrada.
+model AllowedRegistrationEmail {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  note      String?
+  createdAt DateTime @default(now())
+
+  @@map("allowed_registration_emails")
+}
+
 model Project {
   id          String   @id @default(cuid())
   name        String

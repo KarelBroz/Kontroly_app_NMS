@@ -68,7 +68,9 @@ Appka poběží na http://localhost:3000. První účet si založíš na `/regis
 
 ## Přihlašování a obnovení hesla
 
-- Registrace (`/register`) je omezená na e-maily s doménou `@nms.eu` a navíc vyžaduje **ověření e-mailu 6místným kódem** (`/register/verify`) — bez zadání kódu zaslaného na danou adresu se `User` vůbec nezaloží (drží se jako `PendingRegistration` max. 15 minut, max. 5 pokusů na kód), takže si nejde jen vymyslet cizí `@nms.eu` adresu.
+- Registrace (`/register`) je omezená na e-maily s doménou `@nms.eu`, a k dokončení potřebuje JEDNU ze dvou věcí:
+  - **Předem povolený e-mail** — spravuje se na `/users` (kdokoliv přihlášený, zatím bez rolí), tabulka `AllowedRegistrationEmail`. Účet se založí rovnou, bez kódu — identitu v tomhle případě ověřuje ten, kdo adresu na `/users` přidal. Zůstává jako rychlá cesta i natrvalo, ne jen dočasná náhrada za e-mail.
+  - **Ověření e-mailu 6místným kódem** (`/register/verify`) — bez zadání kódu zaslaného na danou adresu se `User` vůbec nezaloží (drží se jako `PendingRegistration` max. 15 minut, max. 5 pokusů na kód).
 - Zapomenuté heslo (`/forgot-password`) pošle uživateli e-mail s časově omezeným odkazem (60 minut, jednorázový token — hash v DB, syrová hodnota jen v odkazu) na `/reset-password`, kde si nastaví nové heslo.
 - E-maily posílá [Resend](https://resend.com) přes `src/lib/mail/sendMail.ts` (čistý `fetch`, žádná další závislost). Bez nastaveného `RESEND_API_KEY` appka požadavek na reset přijme (kvůli ochraně proti zjišťování existujících účtů vždy ukáže stejnou "odesláno" hlášku), ale e-mail reálně neodejde — chyba se jen zaloguje.
 
