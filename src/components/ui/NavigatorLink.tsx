@@ -1,8 +1,33 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Lighthouse } from "lucide-react";
 import { cn } from "@/lib/utils";
+
+// lucide-react nemá ikonku majáku — jednoduchá vlastní ve stejném stylu
+// (stroke, ne fill) jako zbytek sady.
+function LighthouseIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      xmlns="http://www.w3.org/2000/svg"
+      width="24"
+      height="24"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+    >
+      <path d="M8 22h8" />
+      <path d="M10 22V16" />
+      <path d="M14 22V16" />
+      <path d="M9 16 10.5 4h3L15 16Z" />
+      <path d="M9.5 12h5" />
+      <rect x="10.5" y="2" width="3" height="2" rx="0.5" />
+    </svg>
+  );
+}
 
 /**
  * Proklik do Navigátoru na konkrétní nález (návštěva + otázka). Po kliknutí
@@ -29,7 +54,7 @@ export function NavigatorLink({ href, storageKey }: { href: string | null; stora
         title="Nastavte Kód projektu Navigátor v nastavení projektu, ať jde odkaz sestavit."
         className="inline-flex shrink-0 cursor-not-allowed items-center justify-center rounded-lg border border-slate-200 p-1.5 text-slate-300"
       >
-        <Lighthouse className="h-4 w-4" />
+        <LighthouseIcon className="h-4 w-4" />
       </span>
     );
   }
