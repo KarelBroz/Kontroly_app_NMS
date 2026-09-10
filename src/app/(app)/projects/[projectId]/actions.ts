@@ -33,6 +33,8 @@ export async function createWave(projectId: string, formData: FormData) {
 }
 
 export async function updateProject(projectId: string, formData: FormData) {
+  const settingsPath = `/projects/${projectId}/settings`;
+
   const name = String(formData.get("name") || "").trim();
   const client = String(formData.get("client") || "").trim();
   const description = String(formData.get("description") || "").trim();
@@ -45,7 +47,7 @@ export async function updateProject(projectId: string, formData: FormData) {
 
   if (!name || !client || !code || !projectManager || !accountManager) {
     redirect(
-      `/projects/${projectId}?error=${encodeURIComponent(
+      `${settingsPath}?error=${encodeURIComponent(
         "Vyplňte název projektu, klienta, kód projektu, projektového manažera a account manažera."
       )}`
     );
@@ -53,9 +55,7 @@ export async function updateProject(projectId: string, formData: FormData) {
 
   if (!isValidProjectCode(code)) {
     redirect(
-      `/projects/${projectId}?error=${encodeURIComponent(
-        "Kód projektu musí být ve formátu CZ26222 (písmena + rok + číslo)."
-      )}`
+      `${settingsPath}?error=${encodeURIComponent("Kód projektu musí být ve formátu CZ26222 (písmena + rok + číslo).")}`
     );
   }
 
@@ -63,7 +63,7 @@ export async function updateProject(projectId: string, formData: FormData) {
   let logoUrl: string | undefined = undefined;
   if (logoFile instanceof File && logoFile.size > 0) {
     if (!isValidLogoFile(logoFile)) {
-      redirect(`/projects/${projectId}?error=${encodeURIComponent("Logo musí být obrázek (max. 2 MB).")}`);
+      redirect(`${settingsPath}?error=${encodeURIComponent("Logo musí být obrázek (max. 2 MB).")}`);
     }
     logoUrl = await fileToLogoDataUrl(logoFile);
   }
@@ -83,17 +83,16 @@ export async function updateProject(projectId: string, formData: FormData) {
     });
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
-      redirect(
-        `/projects/${projectId}?error=${encodeURIComponent("Tento kód projektu už existuje u jiného projektu.")}`
-      );
+      redirect(`${settingsPath}?error=${encodeURIComponent("Tento kód projektu už existuje u jiného projektu.")}`);
     }
     throw error;
   }
 
   revalidatePath(`/projects/${projectId}`);
+  revalidatePath(settingsPath);
   revalidatePath("/projects");
   revalidatePath("/");
-  redirect(`/projects/${projectId}?saved=1`);
+  redirect(`${settingsPath}?saved=1`);
 }
 
 export async function createScenarioTemplate(projectId: string, formData: FormData) {

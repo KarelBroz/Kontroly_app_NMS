@@ -5,10 +5,9 @@ import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
-import { Textarea } from "@/components/ui/Textarea";
 import { Button } from "@/components/ui/Button";
-import { Layers, AlertTriangle, Settings, ImagePlus } from "lucide-react";
-import { createWave, updateProject, createScenarioTemplate } from "./actions";
+import { Layers, AlertTriangle, Settings } from "lucide-react";
+import { createWave, createScenarioTemplate } from "./actions";
 import { isProjectCodeStale, suggestedProjectCode } from "@/lib/projectCode";
 
 const MONTHS = [
@@ -63,23 +62,32 @@ export default async function ProjectDetailPage({
 
   return (
     <div className="space-y-8">
-      <div>
-        <p className="text-sm font-medium text-brand-blue-600">
-          <Link href="/projects">← Projekty</Link>
-        </p>
-        <div className="mt-1 flex flex-wrap items-center gap-2">
-          <h1 className="text-2xl font-semibold text-slate-900">{project.name}</h1>
-          {project.code && <Badge tone="blue">{project.code}</Badge>}
-        </div>
-        <p className="mt-1 text-sm text-slate-500">{project.client}</p>
-        {(project.projectManager || project.accountManager) && (
-          <p className="mt-1 text-sm text-slate-500">
-            {project.projectManager && <>PM: {project.projectManager}</>}
-            {project.projectManager && project.accountManager && " · "}
-            {project.accountManager && <>AM: {project.accountManager}</>}
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div>
+          <p className="text-sm font-medium text-brand-blue-600">
+            <Link href="/projects">← Projekty</Link>
           </p>
-        )}
-        {project.description && <p className="mt-2 max-w-2xl text-sm text-slate-600">{project.description}</p>}
+          <div className="mt-1 flex flex-wrap items-center gap-2">
+            <h1 className="text-2xl font-semibold text-slate-900">{project.name}</h1>
+            {project.code && <Badge tone="blue">{project.code}</Badge>}
+          </div>
+          <p className="mt-1 text-sm text-slate-500">{project.client}</p>
+          {(project.projectManager || project.accountManager) && (
+            <p className="mt-1 text-sm text-slate-500">
+              {project.projectManager && <>PM: {project.projectManager}</>}
+              {project.projectManager && project.accountManager && " · "}
+              {project.accountManager && <>AM: {project.accountManager}</>}
+            </p>
+          )}
+          {project.description && <p className="mt-2 max-w-2xl text-sm text-slate-600">{project.description}</p>}
+        </div>
+        <Link
+          href={`/projects/${project.id}/settings`}
+          className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-50"
+        >
+          <Settings className="h-4 w-4" />
+          Upravit projekt
+        </Link>
       </div>
 
       {stale && (
@@ -93,7 +101,7 @@ export default async function ProjectDetailPage({
                 — navrhovaný nový kód: <strong>{suggested}</strong>
               </>
             )}
-            . Kontrola je ruční — pokud to sedí, uprav kód níže v sekci "Upravit projekt".
+            . Kontrola je ruční — pokud to sedí, uprav kód přes "Upravit projekt" vpravo nahoře.
           </p>
         </div>
       )}
@@ -101,135 +109,6 @@ export default async function ProjectDetailPage({
       {searchParams.error && (
         <p className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">{searchParams.error}</p>
       )}
-
-      <Card>
-        <h2 className="mb-4 text-sm font-semibold text-slate-900">Upravit projekt</h2>
-        <form action={updateProject.bind(null, project.id)} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <div>
-            <Label htmlFor="edit-name">Název projektu</Label>
-            <Input id="edit-name" name="name" defaultValue={project.name} required />
-          </div>
-          <div>
-            <Label htmlFor="edit-client">Klient</Label>
-            <Input id="edit-client" name="client" defaultValue={project.client} required />
-          </div>
-          <div>
-            <Label htmlFor="edit-code">Kód projektu</Label>
-            <Input id="edit-code" name="code" defaultValue={project.code ?? ""} placeholder="CZ26222" required />
-          </div>
-          <div>
-            <Label htmlFor="edit-projectManager">Projektový manažer</Label>
-            <Input
-              id="edit-projectManager"
-              name="projectManager"
-              defaultValue={project.projectManager ?? ""}
-              required
-            />
-          </div>
-          <div>
-            <Label htmlFor="edit-accountManager">Account manager</Label>
-            <Input
-              id="edit-accountManager"
-              name="accountManager"
-              defaultValue={project.accountManager ?? ""}
-              required
-            />
-          </div>
-          <div className="sm:col-span-2">
-            <Label htmlFor="edit-description">Popis (nepovinné)</Label>
-            <Textarea id="edit-description" name="description" rows={3} defaultValue={project.description ?? ""} />
-          </div>
-          <div className="sm:col-span-2">
-            <Label htmlFor="edit-logo">Logo firmy</Label>
-            <label
-              htmlFor="edit-logo"
-              className="mt-1 flex cursor-pointer items-center gap-4 rounded-xl border border-dashed border-slate-300 p-4 hover:border-brand-blue-400 hover:bg-brand-blue-50/40"
-            >
-              {project.logoUrl ? (
-                <>
-                  {/* data URL logo — plain <img>, next/image nemá pro data: URL smysl */}
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={project.logoUrl}
-                    alt="Logo"
-                    className="h-12 w-12 shrink-0 rounded-lg border border-slate-200 bg-white object-contain"
-                  />
-                  <span className="text-sm text-slate-600">
-                    Logo úspěšně nahráno, kliknutím můžete logo změnit
-                  </span>
-                </>
-              ) : (
-                <>
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-400">
-                    <ImagePlus className="h-5 w-5" />
-                  </div>
-                  <span className="text-sm text-slate-600">Nahrát logo</span>
-                </>
-              )}
-              <input id="edit-logo" name="logo" type="file" accept="image/*" className="hidden" />
-            </label>
-          </div>
-          <div className="sm:col-span-2">
-            <Button type="submit" variant="secondary">
-              Uložit změny
-            </Button>
-          </div>
-        </form>
-      </Card>
-
-      <Card>
-        <h2 className="mb-1 text-sm font-semibold text-slate-900">Šablony scénářů</h2>
-        <p className="mb-4 text-sm text-slate-500">
-          Např. "Cestovní pojištění 2026", "Povinné ručení 2026" — z těchto šablon se pak ve vlně vybírají konkrétní
-          scénáře.
-        </p>
-        {project.scenarioTemplates.length > 0 && (
-          <div className="mb-4 flex flex-wrap gap-2">
-            {project.scenarioTemplates.map((template) => (
-              <Badge key={template.id} tone="neutral">
-                {template.name}
-              </Badge>
-            ))}
-          </div>
-        )}
-        <form action={createScenarioTemplate.bind(null, project.id)} className="flex flex-wrap items-end gap-4">
-          <div className="min-w-[240px] flex-1">
-            <Label htmlFor="templateName">Nová šablona scénáře</Label>
-            <Input id="templateName" name="templateName" placeholder="např. Cestovní pojištění 2026" required />
-          </div>
-          <Button type="submit" variant="secondary">
-            Přidat šablonu
-          </Button>
-        </form>
-      </Card>
-
-      <Card>
-        <h2 className="mb-4 text-sm font-semibold text-slate-900">Nová vlna</h2>
-        <form action={createWave.bind(null, project.id)} className="space-y-4">
-          <div className="flex flex-wrap items-end gap-4">
-            <div className="min-w-[200px] flex-1">
-              <Label htmlFor="name">Název vlny</Label>
-              <Input id="name" name="name" placeholder="např. Q1 2026" required />
-            </div>
-            <div className="w-28">
-              <Label htmlFor="year">Rok (nepovinné)</Label>
-              <Input id="year" name="year" type="number" placeholder="2026" min={2000} max={2100} />
-            </div>
-          </div>
-          <div>
-            <Label>Měsíce (nepovinné, jde vybrat víc — terén napříč měsíci)</Label>
-            <div className="mt-1 flex flex-wrap gap-x-4 gap-y-2">
-              {MONTHS.map((label, index) => (
-                <label key={label} className="flex items-center gap-1.5 text-sm text-slate-600">
-                  <input type="checkbox" name="months" value={index + 1} className="rounded border-slate-300" />
-                  {label}
-                </label>
-              ))}
-            </div>
-          </div>
-          <Button type="submit">Založit vlnu</Button>
-        </form>
-      </Card>
 
       <section>
         <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-slate-500">Vlny</h2>
@@ -279,6 +158,60 @@ export default async function ProjectDetailPage({
           </div>
         )}
       </section>
+
+      <Card>
+        <h2 className="mb-4 text-sm font-semibold text-slate-900">Nová vlna</h2>
+        <form action={createWave.bind(null, project.id)} className="space-y-4">
+          <div className="flex flex-wrap items-end gap-4">
+            <div className="min-w-[200px] flex-1">
+              <Label htmlFor="name">Název vlny</Label>
+              <Input id="name" name="name" placeholder="např. Q1 2026" required />
+            </div>
+            <div className="w-28">
+              <Label htmlFor="year">Rok (nepovinné)</Label>
+              <Input id="year" name="year" type="number" placeholder="2026" min={2000} max={2100} />
+            </div>
+          </div>
+          <div>
+            <Label>Měsíce (nepovinné, jde vybrat víc — terén napříč měsíci)</Label>
+            <div className="mt-1 flex flex-wrap gap-x-4 gap-y-2">
+              {MONTHS.map((label, index) => (
+                <label key={label} className="flex items-center gap-1.5 text-sm text-slate-600">
+                  <input type="checkbox" name="months" value={index + 1} className="rounded border-slate-300" />
+                  {label}
+                </label>
+              ))}
+            </div>
+          </div>
+          <Button type="submit">Založit vlnu</Button>
+        </form>
+      </Card>
+
+      <Card>
+        <h2 className="mb-1 text-sm font-semibold text-slate-900">Šablony scénářů</h2>
+        <p className="mb-4 text-sm text-slate-500">
+          Např. "Cestovní pojištění 2026", "Povinné ručení 2026" — z těchto šablon se pak ve vlně vybírají konkrétní
+          scénáře.
+        </p>
+        {project.scenarioTemplates.length > 0 && (
+          <div className="mb-4 flex flex-wrap gap-2">
+            {project.scenarioTemplates.map((template) => (
+              <Badge key={template.id} tone="neutral">
+                {template.name}
+              </Badge>
+            ))}
+          </div>
+        )}
+        <form action={createScenarioTemplate.bind(null, project.id)} className="flex flex-wrap items-end gap-4">
+          <div className="min-w-[240px] flex-1">
+            <Label htmlFor="templateName">Nová šablona scénáře</Label>
+            <Input id="templateName" name="templateName" placeholder="např. Cestovní pojištění 2026" required />
+          </div>
+          <Button type="submit" variant="secondary">
+            Přidat šablonu
+          </Button>
+        </form>
+      </Card>
     </div>
   );
 }
