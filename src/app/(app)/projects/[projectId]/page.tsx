@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
 import { Textarea } from "@/components/ui/Textarea";
 import { Button } from "@/components/ui/Button";
-import { Layers, AlertTriangle, Settings } from "lucide-react";
+import { Layers, AlertTriangle, Settings, ImagePlus } from "lucide-react";
 import { createWave, updateProject, createScenarioTemplate } from "./actions";
 import { isProjectCodeStale, suggestedProjectCode } from "@/lib/projectCode";
 
@@ -138,6 +138,36 @@ export default async function ProjectDetailPage({
           <div className="sm:col-span-2">
             <Label htmlFor="edit-description">Popis (nepovinné)</Label>
             <Textarea id="edit-description" name="description" rows={3} defaultValue={project.description ?? ""} />
+          </div>
+          <div className="sm:col-span-2">
+            <Label htmlFor="edit-logo">Logo firmy</Label>
+            <label
+              htmlFor="edit-logo"
+              className="mt-1 flex cursor-pointer items-center gap-4 rounded-xl border border-dashed border-slate-300 p-4 hover:border-brand-blue-400 hover:bg-brand-blue-50/40"
+            >
+              {project.logoUrl ? (
+                <>
+                  {/* data URL logo — plain <img>, next/image nemá pro data: URL smysl */}
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={project.logoUrl}
+                    alt="Logo"
+                    className="h-12 w-12 shrink-0 rounded-lg border border-slate-200 bg-white object-contain"
+                  />
+                  <span className="text-sm text-slate-600">
+                    Logo úspěšně nahráno, kliknutím můžete logo změnit
+                  </span>
+                </>
+              ) : (
+                <>
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-400">
+                    <ImagePlus className="h-5 w-5" />
+                  </div>
+                  <span className="text-sm text-slate-600">Nahrát logo</span>
+                </>
+              )}
+              <input id="edit-logo" name="logo" type="file" accept="image/*" className="hidden" />
+            </label>
           </div>
           <div className="sm:col-span-2">
             <Button type="submit" variant="secondary">

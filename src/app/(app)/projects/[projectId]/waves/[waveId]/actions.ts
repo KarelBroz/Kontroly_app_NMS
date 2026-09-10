@@ -54,6 +54,7 @@ export async function importWaveFile(projectId: string, waveId: string, formData
 export async function rerunWave(projectId: string, waveId: string) {
   await rerunRulesForWave(waveId);
   revalidatePath(wavePath(projectId, waveId));
+  redirect(`${wavePath(projectId, waveId)}?saved=${encodeURIComponent("Zkontrolováno")}`);
 }
 
 export async function updateFindingStatus(
@@ -67,6 +68,8 @@ export async function updateFindingStatus(
     data: { status, resolvedAt: status === FindingStatus.OPEN ? null : new Date() },
   });
   revalidatePath(wavePath(projectId, waveId));
+  const message = status === FindingStatus.RESOLVED ? "Vyřešeno" : "Ignorováno";
+  redirect(`${wavePath(projectId, waveId)}?saved=${encodeURIComponent(message)}`);
 }
 
 // ---------- Nastavení vlny: základní údaje ----------
@@ -94,6 +97,7 @@ export async function updateWaveInfo(projectId: string, waveId: string, formData
   revalidatePath(settingsPath(projectId, waveId));
   revalidatePath(wavePath(projectId, waveId));
   revalidatePath(`/projects/${projectId}`);
+  redirect(`${settingsPath(projectId, waveId)}?saved=1`);
 }
 
 // ---------- Nastavení vlny: scénáře ----------
@@ -140,6 +144,7 @@ export async function addScenario(projectId: string, waveId: string, formData: F
 
   revalidatePath(settingsPath(projectId, waveId));
   revalidatePath(`/projects/${projectId}`);
+  redirect(`${settingsPath(projectId, waveId)}?saved=${encodeURIComponent("Scénář přidán")}`);
 }
 
 export async function createTemplateAndAddScenario(projectId: string, waveId: string, formData: FormData) {
@@ -174,6 +179,7 @@ export async function createTemplateAndAddScenario(projectId: string, waveId: st
 
   revalidatePath(settingsPath(projectId, waveId));
   revalidatePath(`/projects/${projectId}`);
+  redirect(`${settingsPath(projectId, waveId)}?saved=${encodeURIComponent("Scénář přidán")}`);
 }
 
 export async function updateScenarioData(
@@ -211,6 +217,7 @@ export async function updateScenarioData(
   });
 
   revalidatePath(settingsPath(projectId, waveId));
+  redirect(`${settingsPath(projectId, waveId)}?saved=1`);
 }
 
 export async function removeScenario(projectId: string, waveId: string, scenarioId: string) {
@@ -226,6 +233,7 @@ export async function removeScenario(projectId: string, waveId: string, scenario
   await prisma.scenario.delete({ where: { id: scenarioId } });
   revalidatePath(settingsPath(projectId, waveId));
   revalidatePath(`/projects/${projectId}`);
+  redirect(`${settingsPath(projectId, waveId)}?saved=${encodeURIComponent("Scénář smazán")}`);
 }
 
 // ---------- Nastavení vlny: pravidla (per scénář) ----------
@@ -259,14 +267,17 @@ export async function createRule(projectId: string, waveId: string, scenarioId: 
   });
 
   revalidatePath(settingsPath(projectId, waveId));
+  redirect(`${settingsPath(projectId, waveId)}?saved=${encodeURIComponent("Pravidlo přidáno")}`);
 }
 
 export async function toggleRule(projectId: string, waveId: string, ruleId: string, isActive: boolean) {
   await prisma.rule.update({ where: { id: ruleId }, data: { isActive } });
   revalidatePath(settingsPath(projectId, waveId));
+  redirect(`${settingsPath(projectId, waveId)}?saved=1`);
 }
 
 export async function deleteRule(projectId: string, waveId: string, ruleId: string) {
   await prisma.rule.delete({ where: { id: ruleId } });
   revalidatePath(settingsPath(projectId, waveId));
+  redirect(`${settingsPath(projectId, waveId)}?saved=${encodeURIComponent("Smazáno")}`);
 }

@@ -51,6 +51,12 @@ model Project {
   projectManager String?
   accountManager String?
 
+  // Logo firmy — uložené přímo jako data URL (base64), zobrazuje se jako
+  // ikona v dlaždici projektu. Bez dalšího souborového úložiště (viz
+  // src/lib/logo.ts) — jednoduché a stačí pro malá loga; při potřebě
+  // větších souborů časem přejít na Vercel Blob/S3.
+  logoUrl String?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

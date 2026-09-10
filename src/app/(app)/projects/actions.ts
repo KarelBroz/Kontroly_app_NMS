@@ -5,6 +5,7 @@ import { Prisma } from "@prisma/client";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { isValidProjectCode } from "@/lib/projectCode";
+import { isValidLogoFile, fileToLogoDataUrl } from "@/lib/logo";
 
 export async function createProject(formData: FormData) {
   const name = String(formData.get("name") || "").trim();
@@ -15,6 +16,7 @@ export async function createProject(formData: FormData) {
     .toUpperCase();
   const projectManager = String(formData.get("projectManager") || "").trim();
   const accountManager = String(formData.get("accountManager") || "").trim();
+  const logoFile = formData.get("logo");
 
   if (!name || !client || !code || !projectManager || !accountManager) {
     redirect(
@@ -30,10 +32,18 @@ export async function createProject(formData: FormData) {
     );
   }
 
+  let logoUrl: string | null = null;
+  if (logoFile instanceof File && logoFile.size > 0) {
+    if (!isValidLogoFile(logoFile)) {
+      redirect(`/projects/new?error=${encodeURIComponent("Logo musí být obrázek (max. 2 MB).")}`);
+    }
+    logoUrl = await fileToLogoDataUrl(logoFile);
+  }
+
   let project;
   try {
     project = await prisma.project.create({
-      data: { name, client, description: description || null, code, projectManager, accountManager },
+      data: { name, client, description: description || null, code, projectManager, accountManager, logoUrl },
     });
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
@@ -43,5 +53,6 @@ export async function createProject(formData: FormData) {
   }
 
   revalidatePath("/projects");
-  redirect(`/projects/${project.id}`);
+  revalidatePath("/");
+  redirect(`/projects/${project.id}?saved=1`);
 }

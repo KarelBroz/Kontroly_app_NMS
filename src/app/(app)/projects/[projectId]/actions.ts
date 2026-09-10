@@ -5,6 +5,7 @@ import { Prisma } from "@prisma/client";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { isValidProjectCode } from "@/lib/projectCode";
+import { isValidLogoFile, fileToLogoDataUrl } from "@/lib/logo";
 
 export async function createWave(projectId: string, formData: FormData) {
   const name = String(formData.get("name") || "").trim();
@@ -28,7 +29,7 @@ export async function createWave(projectId: string, formData: FormData) {
 
   revalidatePath(`/projects/${projectId}`);
   // Po založení vlny je potřeba nejdřív nastavit scénář(e) - bez něj nejde nic importovat.
-  redirect(`/projects/${projectId}/waves/${wave.id}/settings`);
+  redirect(`/projects/${projectId}/waves/${wave.id}/settings?saved=1`);
 }
 
 export async function updateProject(projectId: string, formData: FormData) {
@@ -40,6 +41,7 @@ export async function updateProject(projectId: string, formData: FormData) {
     .toUpperCase();
   const projectManager = String(formData.get("projectManager") || "").trim();
   const accountManager = String(formData.get("accountManager") || "").trim();
+  const logoFile = formData.get("logo");
 
   if (!name || !client || !code || !projectManager || !accountManager) {
     redirect(
@@ -57,10 +59,27 @@ export async function updateProject(projectId: string, formData: FormData) {
     );
   }
 
+  // undefined = pole se v update datech vůbec nepošle -> stávající logo zůstane beze změny
+  let logoUrl: string | undefined = undefined;
+  if (logoFile instanceof File && logoFile.size > 0) {
+    if (!isValidLogoFile(logoFile)) {
+      redirect(`/projects/${projectId}?error=${encodeURIComponent("Logo musí být obrázek (max. 2 MB).")}`);
+    }
+    logoUrl = await fileToLogoDataUrl(logoFile);
+  }
+
   try {
     await prisma.project.update({
       where: { id: projectId },
-      data: { name, client, description: description || null, code, projectManager, accountManager },
+      data: {
+        name,
+        client,
+        description: description || null,
+        code,
+        projectManager,
+        accountManager,
+        ...(logoUrl !== undefined ? { logoUrl } : {}),
+      },
     });
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
@@ -74,6 +93,7 @@ export async function updateProject(projectId: string, formData: FormData) {
   revalidatePath(`/projects/${projectId}`);
   revalidatePath("/projects");
   revalidatePath("/");
+  redirect(`/projects/${projectId}?saved=1`);
 }
 
 export async function createScenarioTemplate(projectId: string, formData: FormData) {
@@ -95,4 +115,5 @@ export async function createScenarioTemplate(projectId: string, formData: FormDa
   }
 
   revalidatePath(`/projects/${projectId}`);
+  redirect(`/projects/${projectId}?saved=${encodeURIComponent("Šablona přidána")}`);
 }

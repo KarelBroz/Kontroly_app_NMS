@@ -56,9 +56,18 @@ export default async function HomePage() {
             {projects.map((project) => (
               <Link key={project.id} href={`/projects/${project.id}`}>
                 <Card className="h-full cursor-pointer">
-                  <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-brand-blue-50 text-brand-blue-600">
-                    <FolderKanban className="h-5 w-5" />
-                  </div>
+                  {project.logoUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={project.logoUrl}
+                      alt=""
+                      className="mb-3 h-10 w-10 rounded-xl border border-slate-200 bg-white object-contain"
+                    />
+                  ) : (
+                    <div className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-brand-blue-50 text-brand-blue-600">
+                      <FolderKanban className="h-5 w-5" />
+                    </div>
+                  )}
                   <h3 className="font-semibold text-slate-900">{project.name}</h3>
                   <p className="mt-1 text-sm text-slate-500">{project.client}</p>
                   <div className="mt-4">
