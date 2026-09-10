@@ -49,7 +49,7 @@ function ToastWatcher() {
   if (!message) return null;
 
   return (
-    <div className="pointer-events-none fixed bottom-6 right-6 z-50">
+    <div className="pointer-events-none fixed bottom-24 right-6 z-50">
       <div
         className={cn(
           "pointer-events-auto flex items-center gap-2 rounded-xl bg-brand-green-600 px-4 py-3 text-sm font-medium text-white shadow-lg transition-all duration-300",

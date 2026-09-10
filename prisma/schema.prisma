@@ -19,6 +19,7 @@ model User {
 
   importBatches       ImportBatch[]
   passwordResetTokens PasswordResetToken[]
+  bugReports          BugReport[]
 
   @@map("users")
 }
@@ -286,4 +287,30 @@ model Finding {
   updatedAt  DateTime  @updatedAt
 
   @@map("findings")
+}
+
+enum BugReportStatus {
+  PENDING // čeká na vyhodnocení
+  RESOLVED // vyřešeno
+  REJECTED // zamítnuto
+}
+
+// Nahlášení chyby uživatelem přímo ze stránky appky, kde na ni narazil
+// (kulatá vlaječka vpravo dole, viz src/components/bugreport/BugReportButton.tsx).
+model BugReport {
+  id     String  @id @default(cuid())
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id])
+
+  // cesta (pathname), na které uživatel chybu nahlásil — proklikem se na
+  // ni admin dostane rovnou z přehledu v "Sběr chyb".
+  pageUrl String
+  message String
+
+  status BugReportStatus @default(PENDING)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("bug_reports")
 }
