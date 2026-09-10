@@ -9,6 +9,7 @@ import { authOptions } from "@/lib/auth";
 import { importVisitsFromFile } from "@/lib/import/importVisits";
 import { rerunRulesForWave, rerunRulesForScenario } from "@/lib/rules/runRules";
 import { RULE_TYPE_LABELS } from "@/lib/rules/labels";
+import { fixMojibakeFileName } from "@/lib/fixMojibakeFileName";
 
 function wavePath(projectId: string, waveId: string) {
   return `/projects/${projectId}/waves/${waveId}`;
@@ -41,7 +42,7 @@ export async function importWaveFile(projectId: string, waveId: string, formData
   const result = await importVisitsFromFile({
     waveId,
     scenarioId,
-    fileName: (file as File).name,
+    fileName: fixMojibakeFileName((file as File).name),
     buffer,
     uploadedById: session?.user?.id,
   });

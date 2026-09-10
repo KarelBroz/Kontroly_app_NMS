@@ -6,6 +6,7 @@ import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { FolderKanban, Upload, Plus } from "lucide-react";
+import { fixMojibakeFileName } from "@/lib/fixMojibakeFileName";
 
 export default async function HomePage() {
   const session = await getServerSession(authOptions);
@@ -103,7 +104,8 @@ export default async function HomePage() {
                       {batch.wave.project.name} — {batch.wave.name}
                     </p>
                     <p className="text-xs text-slate-500">
-                      {batch.fileName} · nahrál {batch.uploadedBy?.name ?? batch.uploadedBy?.email ?? "neznámý"}
+                      {fixMojibakeFileName(batch.fileName)} · nahrál{" "}
+                      {batch.uploadedBy?.name ?? batch.uploadedBy?.email ?? "neznámý"}
                     </p>
                   </div>
                 </div>

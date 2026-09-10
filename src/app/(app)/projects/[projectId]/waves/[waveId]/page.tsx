@@ -13,6 +13,7 @@ import { isVisitDataEmpty } from "@/lib/visits/emptyVisit";
 import { ConfirmSubmitButton } from "@/components/ui/ConfirmSubmitButton";
 import { NavigatorLink } from "@/components/ui/NavigatorLink";
 import { buildNavigatorUrl } from "@/lib/navigator";
+import { fixMojibakeFileName } from "@/lib/fixMojibakeFileName";
 import { cn } from "@/lib/utils";
 import { importWaveFile, rerunWave, updateFindingStatus, deleteImportBatch } from "./actions";
 
@@ -223,10 +224,14 @@ export default async function WaveDetailPage({
 
             {wave.importBatches.length > 0 && (
               <div className="mt-6 divide-y divide-slate-100 border-t border-slate-100">
-                {wave.importBatches.map((batch) => (
+                {wave.importBatches.map((batch) => {
+                  // stare zaznamy mohly mit jmeno souboru ulozene rozsypane (spatne dekodovane
+                  // diakritiky) - oprava je bezpecne idempotentni, takze uz spravna jmena nechá být
+                  const fileName = fixMojibakeFileName(batch.fileName);
+                  return (
                   <div key={batch.id} className="flex flex-wrap items-center justify-between gap-2 py-3 text-sm">
                     <div className="flex items-center gap-2">
-                      <span className="text-slate-700">{batch.fileName}</span>
+                      <span className="text-slate-700">{fileName}</span>
                       <Badge tone="blue">{batch.scenario.scenarioTemplate.name}</Badge>
                     </div>
                     <div className="flex items-center gap-3">
@@ -237,7 +242,7 @@ export default async function WaveDetailPage({
                       <form action={deleteImportBatch.bind(null, wave.projectId, wave.id, batch.id)}>
                         <ConfirmSubmitButton
                           type="submit"
-                          confirmMessage={`Opravdu smazat import "${batch.fileName}"? Smažou se i všechny návštěvy, které naposledy přinesl.`}
+                          confirmMessage={`Opravdu smazat import "${fileName}"? Smažou se i všechny návštěvy, které naposledy přinesl.`}
                           title="Smazat tenhle import (a návštěvy, které naposledy přinesl)"
                           className="rounded-lg p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600"
                         >
@@ -246,7 +251,8 @@ export default async function WaveDetailPage({
                       </form>
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </Card>
