@@ -5,15 +5,23 @@ import { prisma } from "@/lib/prisma";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
-import { FolderKanban, Upload, Plus } from "lucide-react";
+import { FolderKanban, Upload, Plus, FolderCheck, ClipboardList, AlertCircle } from "lucide-react";
 import { fixMojibakeFileName } from "@/lib/fixMojibakeFileName";
+import { StatTile } from "@/components/stats/StatTile";
+import { TopReviewersCard } from "@/components/stats/TopReviewersCard";
+import { getMonthlyActivity, getOpenFindingsByProject, getTopReviewers } from "@/lib/stats/getStats";
+import { currentYearMonth, monthLabel, monthRange } from "@/lib/stats/dateRange";
 
 export default async function HomePage() {
   const session = await getServerSession(authOptions);
   // Jen křestní jméno z profilu (User.name je "Jméno Příjmení").
   const firstName = session?.user?.name?.trim().split(/\s+/)[0] || null;
 
-  const [projects, recentBatches] = await Promise.all([
+  const { year, month } = currentYearMonth();
+  const range = monthRange(year, month);
+  const periodLabel = `${monthLabel(month)} ${year}`;
+
+  const [projects, recentBatches, monthlyActivity, openFindings, topReviewers] = await Promise.all([
     prisma.project.findMany({
       orderBy: { updatedAt: "desc" },
       take: 8,
@@ -24,6 +32,9 @@ export default async function HomePage() {
       take: 6,
       include: { wave: { include: { project: true } }, uploadedBy: true },
     }),
+    getMonthlyActivity(range),
+    getOpenFindingsByProject(),
+    getTopReviewers(range),
   ]);
 
   return (
@@ -42,6 +53,45 @@ export default async function HomePage() {
           </Button>
         </Link>
       </div>
+
+      <section>
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">Statistiky</h2>
+          <Link href="/statistics" className="text-xs font-medium text-brand-blue-600 hover:underline">
+            Zobrazit vše →
+          </Link>
+        </div>
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
+          <StatTile
+            icon={FolderCheck}
+            label="Aktivní projekty"
+            value={monthlyActivity.activeProjects.total}
+            accent="blue"
+            ranked={monthlyActivity.activeProjects.ranked}
+            unit={periodLabel}
+            emptyText="Zatím žádná aktivita"
+          />
+          <StatTile
+            icon={ClipboardList}
+            label="Návštěvy"
+            value={monthlyActivity.visits.total}
+            accent="green"
+            ranked={monthlyActivity.visits.ranked}
+            unit={periodLabel}
+            emptyText="Zatím žádné návštěvy"
+          />
+          <StatTile
+            icon={AlertCircle}
+            label="Čeká na zkontrolování"
+            value={openFindings.total}
+            accent="amber"
+            ranked={openFindings.ranked}
+            unit="teď"
+            emptyText="Žádné otevřené nálezy 🎉"
+          />
+          <TopReviewersCard reviewers={topReviewers} periodLabel={periodLabel} />
+        </div>
+      </section>
 
       <section>
         <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-slate-500">Projekty</h2>

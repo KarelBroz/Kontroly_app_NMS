@@ -2,13 +2,14 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, FolderKanban, Settings, Users, LogOut, ClipboardCheck, Flag } from "lucide-react";
+import { Home, FolderKanban, Settings, Users, LogOut, ClipboardCheck, Flag, BarChart3 } from "lucide-react";
 import { signOut } from "next-auth/react";
 import { cn } from "@/lib/utils";
 
 const NAV_ITEMS = [
   { href: "/", label: "Homepage", icon: Home },
   { href: "/projects", label: "Projekty", icon: FolderKanban },
+  { href: "/statistics", label: "Statistiky", icon: BarChart3 },
   { href: "/settings", label: "Nastavení", icon: Settings },
   { href: "/users", label: "Správa uživatelů", icon: Users },
   { href: "/bug-reports", label: "Sběr chyb", icon: Flag },
