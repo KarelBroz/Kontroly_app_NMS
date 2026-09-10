@@ -69,7 +69,8 @@ export default async function ProjectDetailPage({
           </p>
           <div className="mt-1 flex flex-wrap items-center gap-2">
             <h1 className="text-2xl font-semibold text-slate-900">{project.name}</h1>
-            {project.code && <Badge tone="blue">{project.code}</Badge>}
+            {project.code && <Badge tone="blue">Intranet: {project.code}</Badge>}
+            {project.navigatorCode && <Badge tone="purple">Navigátor: {project.navigatorCode}</Badge>}
           </div>
           <p className="mt-1 text-sm text-slate-500">{project.client}</p>
           {(project.projectManager || project.accountManager) && (
@@ -94,7 +95,7 @@ export default async function ProjectDetailPage({
         <div className="flex items-start gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
           <p>
-            Kód projektu <strong>{project.code}</strong> pravděpodobně potřebuje aktualizaci na nový rok
+            Kód projektu Intranet <strong>{project.code}</strong> pravděpodobně potřebuje aktualizaci na nový rok
             {suggested && (
               <>
                 {" "}

@@ -14,6 +14,7 @@ export async function createProject(formData: FormData) {
   const code = String(formData.get("code") || "")
     .trim()
     .toUpperCase();
+  const navigatorCode = String(formData.get("navigatorCode") || "").trim();
   const projectManager = String(formData.get("projectManager") || "").trim();
   const accountManager = String(formData.get("accountManager") || "").trim();
   const logoFile = formData.get("logo");
@@ -43,7 +44,16 @@ export async function createProject(formData: FormData) {
   let project;
   try {
     project = await prisma.project.create({
-      data: { name, client, description: description || null, code, projectManager, accountManager, logoUrl },
+      data: {
+        name,
+        client,
+        description: description || null,
+        code,
+        navigatorCode: navigatorCode || null,
+        projectManager,
+        accountManager,
+        logoUrl,
+      },
     });
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {

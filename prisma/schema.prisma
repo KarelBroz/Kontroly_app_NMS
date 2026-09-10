@@ -77,6 +77,10 @@ model Project {
   // Kontrola aktuálnosti roku je ruční, viz src/lib/projectCode.ts.
   code String? @unique
 
+  // Kód projektu v systému Navigátor — jiné/nezávislé číslování než Intranet,
+  // bez pevného formátu, žádná kontrola aktuálnosti.
+  navigatorCode String?
+
   projectManager String?
   accountManager String?
 

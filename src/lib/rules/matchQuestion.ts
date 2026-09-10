@@ -37,3 +37,14 @@ export function isQuestionColumn(columnHeader: string): boolean {
   const prefix = columnHeader.split(":")[0]?.trim() ?? "";
   return QUESTION_CODE_PATTERN.test(prefix);
 }
+
+// U otázek s výběrem možnosti (radio/select) bývá do odpovědi automaticky
+// propsané i interní označení vybrané možnosti, např. "o2: Ne" — to "o2:"
+// není součást skutečné odpovědi, je to jen kód možnosti. Pro kontrolu i
+// zobrazení nás zajímá jen text za ním.
+const ANSWER_OPTION_PREFIX = /^o\d+\s*:\s*/i;
+
+/** Odstraní z odpovědi případné automatické označení možnosti ("o2: Ne" -> "Ne"). */
+export function stripAnswerOptionPrefix(value: string): string {
+  return value.replace(ANSWER_OPTION_PREFIX, "").trim();
+}

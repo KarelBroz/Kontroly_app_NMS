@@ -34,8 +34,12 @@ export default function NewProjectPage({ searchParams }: { searchParams: { error
             <Input id="client" name="client" required />
           </div>
           <div>
-            <Label htmlFor="code">Kód projektu</Label>
+            <Label htmlFor="code">Kód projektu Intranet</Label>
             <Input id="code" name="code" placeholder="CZ26222" required />
+          </div>
+          <div>
+            <Label htmlFor="navigatorCode">Kód projektu Navigátor</Label>
+            <Input id="navigatorCode" name="navigatorCode" />
           </div>
           <div>
             <Label htmlFor="projectManager">Projektový manažer</Label>

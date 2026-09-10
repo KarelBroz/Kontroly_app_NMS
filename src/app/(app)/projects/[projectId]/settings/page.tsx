@@ -44,8 +44,12 @@ export default async function ProjectSettingsPage({
             <Input id="edit-client" name="client" defaultValue={project.client} required />
           </div>
           <div>
-            <Label htmlFor="edit-code">Kód projektu</Label>
+            <Label htmlFor="edit-code">Kód projektu Intranet</Label>
             <Input id="edit-code" name="code" defaultValue={project.code ?? ""} placeholder="CZ26222" required />
+          </div>
+          <div>
+            <Label htmlFor="edit-navigatorCode">Kód projektu Navigátor</Label>
+            <Input id="edit-navigatorCode" name="navigatorCode" defaultValue={project.navigatorCode ?? ""} />
           </div>
           <div>
             <Label htmlFor="edit-projectManager">Projektový manažer</Label>

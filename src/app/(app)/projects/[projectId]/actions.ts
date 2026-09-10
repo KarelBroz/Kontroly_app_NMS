@@ -41,6 +41,7 @@ export async function updateProject(projectId: string, formData: FormData) {
   const code = String(formData.get("code") || "")
     .trim()
     .toUpperCase();
+  const navigatorCode = String(formData.get("navigatorCode") || "").trim();
   const projectManager = String(formData.get("projectManager") || "").trim();
   const accountManager = String(formData.get("accountManager") || "").trim();
   const logoFile = formData.get("logo");
@@ -76,6 +77,7 @@ export async function updateProject(projectId: string, formData: FormData) {
         client,
         description: description || null,
         code,
+        navigatorCode: navigatorCode || null,
         projectManager,
         accountManager,
         ...(logoUrl !== undefined ? { logoUrl } : {}),

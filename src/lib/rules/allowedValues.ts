@@ -1,6 +1,6 @@
 import { FindingSeverity } from "@prisma/client";
 import type { RuleChecker, RuleCheckResult } from "./types";
-import { findAnswerByQuestionCode } from "./matchQuestion";
+import { findAnswerByQuestionCode, stripAnswerOptionPrefix } from "./matchQuestion";
 
 /** config = { questionCode: string, allowedValues: string[] } */
 export const checkAllowedValues: RuleChecker = ({ visitData, ruleConfig }) => {
@@ -12,7 +12,8 @@ export const checkAllowedValues: RuleChecker = ({ visitData, ruleConfig }) => {
   // prázdnou hodnotu řeší samostatné pravidlo "Povinné pole" — tady bychom jen duplikovali nález
   if (value === undefined || value === null || String(value).trim() === "") return [];
 
-  const normalized = String(value).trim();
+  // "o2: Ne" -> kontrolujeme (i zobrazujeme) jen "Ne", "o2:" je jen kód možnosti
+  const normalized = stripAnswerOptionPrefix(String(value).trim());
   const isAllowed = allowedValues.some((allowed) => allowed.trim().toLowerCase() === normalized.toLowerCase());
 
   const results: RuleCheckResult[] = [];
