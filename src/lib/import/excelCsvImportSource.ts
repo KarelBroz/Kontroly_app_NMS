@@ -9,7 +9,9 @@ const INSPECTION_ID_KEYS = ["inspectionid", "inspection_id", "inspection id", "i
  */
 export class ExcelCsvImportSource implements ImportSource {
   async parse(buffer: Buffer, _fileName: string): Promise<ImportRow[]> {
-    const workbook = XLSX.read(buffer, { type: "buffer" });
+    // cellDates: true — datumové buňky (i v CSV) se vrátí jako JS Date, ne jako
+    // Excelí sériové číslo (např. 46037.41...) — to by kontrola RealDate nešla přečíst.
+    const workbook = XLSX.read(buffer, { type: "buffer", cellDates: true });
     const sheetName = workbook.SheetNames[0];
     if (!sheetName) return [];
 
