@@ -79,9 +79,14 @@ export async function updateFindingStatus(
   findingId: string,
   status: FindingStatus
 ) {
+  const session = await getServerSession(authOptions);
   await prisma.finding.update({
     where: { id: findingId },
-    data: { status, resolvedAt: status === FindingStatus.OPEN ? null : new Date() },
+    data: {
+      status,
+      resolvedAt: status === FindingStatus.OPEN ? null : new Date(),
+      reviewedById: session?.user?.id,
+    },
   });
   revalidatePath(wavePath(projectId, waveId));
   const message = status === FindingStatus.RESOLVED ? "Vyřešeno" : "Ignorováno";

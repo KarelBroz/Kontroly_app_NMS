@@ -20,6 +20,7 @@ model User {
   importBatches       ImportBatch[]
   passwordResetTokens PasswordResetToken[]
   bugReports          BugReport[]
+  reviewedFindings    Finding[]
 
   @@map("users")
 }
@@ -281,6 +282,11 @@ model Finding {
   status   FindingStatus   @default(OPEN)
   message  String
   details  Json?
+
+  // kdo naposledy ručně nastavil stav (přes tlačítka chyba/opraveno) — pro
+  // zobrazení iniciál kontrolora vedle nálezu, viz src/app/(app)/.../page.tsx
+  reviewedById String?
+  reviewedBy   User?   @relation(fields: [reviewedById], references: [id])
 
   resolvedAt DateTime?
   createdAt  DateTime  @default(now())

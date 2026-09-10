@@ -5,7 +5,7 @@ import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Label } from "@/components/ui/Label";
 import { Button } from "@/components/ui/Button";
-import { CheckCircle2, XCircle, RefreshCw, Settings, AlertTriangle, Trash2 } from "lucide-react";
+import { CheckCircle2, XCircle, RefreshCw, Settings, AlertTriangle, Trash2, Upload, ClipboardCheck } from "lucide-react";
 import { FindingStatus, RuleType, SystemCheckType } from "@prisma/client";
 import type { BadgeTone } from "@/components/ui/Badge";
 import { RULE_TYPE_LABELS, SYSTEM_CHECK_LABELS } from "@/lib/rules/labels";
@@ -78,6 +78,18 @@ function findingQuestionCode(finding: {
   return null;
 }
 
+/** Iniciály kontrolora (jméno + příjmení -> 2 písmena pod sebou), kdo nález naposledy ručně vyhodnotil. */
+function reviewerInitials(user: { name: string | null; email: string | null } | null | undefined): string[] | null {
+  if (!user) return null;
+  const nameParts = user.name?.trim().split(/\s+/).filter(Boolean) ?? [];
+  if (nameParts.length >= 2) {
+    return [nameParts[0][0].toUpperCase(), nameParts[nameParts.length - 1][0].toUpperCase()];
+  }
+  if (nameParts.length === 1) return [nameParts[0][0].toUpperCase()];
+  if (user.email) return [user.email[0].toUpperCase()];
+  return null;
+}
+
 export default async function WaveDetailPage({
   params,
   searchParams,
@@ -94,7 +106,7 @@ export default async function WaveDetailPage({
         orderBy: { updatedAt: "desc" },
         include: {
           scenario: { include: { scenarioTemplate: true } },
-          findings: { include: { rule: true }, orderBy: { createdAt: "asc" } },
+          findings: { include: { rule: true, reviewedBy: true }, orderBy: { createdAt: "asc" } },
         },
       },
       importBatches: {
@@ -139,7 +151,8 @@ export default async function WaveDetailPage({
           <p className="text-sm font-medium text-brand-blue-600">
             <Link href={`/projects/${wave.projectId}`}>← {wave.project.name}</Link>
           </p>
-          <h1 className="mt-1 text-2xl font-semibold text-slate-900">{wave.name}</h1>
+          <p className="mt-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Kontroly</p>
+          <h1 className="text-2xl font-semibold text-slate-900">{wave.name}</h1>
           <div className="mt-3 flex flex-wrap gap-2">
             <Badge tone="neutral">{wave.visits.length} návštěv</Badge>
             <Badge tone="red">
@@ -179,9 +192,14 @@ export default async function WaveDetailPage({
           )}
 
           {/* Import dat */}
-          <Card>
+          <Card className="border-l-4 border-l-brand-blue-400">
             <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-base font-semibold text-slate-900">Import dat</h2>
+              <div className="flex items-center gap-3">
+                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-blue-50 text-brand-blue-600">
+                  <Upload className="h-4 w-4" />
+                </div>
+                <h2 className="text-base font-semibold text-slate-900">Import dat</h2>
+              </div>
               <form action={rerunWave.bind(null, wave.projectId, wave.id)}>
                 <Button type="submit" variant="secondary" size="sm">
                   <RefreshCw className="h-4 w-4" />
@@ -258,9 +276,14 @@ export default async function WaveDetailPage({
           </Card>
 
           {/* Nálezy — po návštěvách, chybové nahoře, bez odpovědí šedě dole */}
-          <Card className="p-0">
+          <Card className="border-l-4 border-l-brand-green-400 p-0">
             <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-6 py-4">
-              <h2 className="text-base font-semibold text-slate-900">Nálezy</h2>
+              <div className="flex items-center gap-3">
+                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-brand-green-50 text-brand-green-600">
+                  <ClipboardCheck className="h-4 w-4" />
+                </div>
+                <h2 className="text-base font-semibold text-slate-900">Nálezy</h2>
+              </div>
               {wave.visits.length > 0 && (
                 <div className="flex flex-wrap gap-2">
                   <Badge tone="neutral">{wave.visits.length} MS celkem</Badge>
@@ -408,6 +431,18 @@ export default async function WaveDetailPage({
                                       />
                                     </button>
                                   </form>
+                                  {reviewerInitials(finding.reviewedBy) && (
+                                    <div
+                                      title={`Naposledy vyhodnotil: ${
+                                        finding.reviewedBy?.name ?? finding.reviewedBy?.email ?? ""
+                                      }`}
+                                      className="ml-0.5 flex flex-col items-center justify-center gap-px leading-none text-[9px] font-semibold uppercase text-slate-400"
+                                    >
+                                      {reviewerInitials(finding.reviewedBy)!.map((letter, i) => (
+                                        <span key={i}>{letter}</span>
+                                      ))}
+                                    </div>
+                                  )}
                                 </div>
                               </div>
                             );

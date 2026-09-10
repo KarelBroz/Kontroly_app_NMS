@@ -128,10 +128,11 @@ export default async function ProjectDetailPage({
                     {/* z-10, aby zůstalo klikatelné nad "roztaženým" odkazem karty níže */}
                     <Link
                       href={`/projects/${project.id}/waves/${wave.id}/settings`}
-                      className="relative z-10 rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
-                      title="Nastavení vlny"
+                      className="relative z-10 flex items-center gap-1.5 rounded-lg px-2 py-1.5 text-xs font-medium text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+                      title="Upravit vlnu"
                     >
                       <Settings className="h-4 w-4" />
+                      Upravit vlnu
                     </Link>
                   </div>
                   <h3 className="font-semibold text-slate-900">{wave.name}</h3>
@@ -160,59 +161,64 @@ export default async function ProjectDetailPage({
         )}
       </section>
 
-      <Card>
-        <h2 className="mb-4 text-sm font-semibold text-slate-900">Nová vlna</h2>
-        <form action={createWave.bind(null, project.id)} className="space-y-4">
-          <div className="flex flex-wrap items-end gap-4">
-            <div className="min-w-[200px] flex-1">
-              <Label htmlFor="name">Název vlny</Label>
-              <Input id="name" name="name" placeholder="např. Q1 2026" required />
-            </div>
-            <div className="w-28">
-              <Label htmlFor="year">Rok (nepovinné)</Label>
-              <Input id="year" name="year" type="number" placeholder="2026" min={2000} max={2100} />
-            </div>
-          </div>
-          <div>
-            <Label>Měsíce (nepovinné, jde vybrat víc — terén napříč měsíci)</Label>
-            <div className="mt-1 flex flex-wrap gap-x-4 gap-y-2">
-              {MONTHS.map((label, index) => (
-                <label key={label} className="flex items-center gap-1.5 text-sm text-slate-600">
-                  <input type="checkbox" name="months" value={index + 1} className="rounded border-slate-300" />
-                  {label}
-                </label>
-              ))}
-            </div>
-          </div>
-          <Button type="submit">Založit vlnu</Button>
-        </form>
-      </Card>
+      <div className="border-t border-slate-200 pt-8">
+        <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-slate-500">Administrace projektu</h2>
+        <div className="space-y-6">
+          <Card>
+            <h3 className="mb-4 text-sm font-semibold text-slate-900">Nová vlna</h3>
+            <form action={createWave.bind(null, project.id)} className="space-y-4">
+              <div className="flex flex-wrap items-end gap-4">
+                <div className="min-w-[200px] flex-1">
+                  <Label htmlFor="name">Název vlny</Label>
+                  <Input id="name" name="name" placeholder="např. Q1 2026" required />
+                </div>
+                <div className="w-28">
+                  <Label htmlFor="year">Rok (nepovinné)</Label>
+                  <Input id="year" name="year" type="number" placeholder="2026" min={2000} max={2100} />
+                </div>
+              </div>
+              <div>
+                <Label>Měsíce (nepovinné, jde vybrat víc — terén napříč měsíci)</Label>
+                <div className="mt-1 flex flex-wrap gap-x-4 gap-y-2">
+                  {MONTHS.map((label, index) => (
+                    <label key={label} className="flex items-center gap-1.5 text-sm text-slate-600">
+                      <input type="checkbox" name="months" value={index + 1} className="rounded border-slate-300" />
+                      {label}
+                    </label>
+                  ))}
+                </div>
+              </div>
+              <Button type="submit">Založit vlnu</Button>
+            </form>
+          </Card>
 
-      <Card>
-        <h2 className="mb-1 text-sm font-semibold text-slate-900">Šablony scénářů</h2>
-        <p className="mb-4 text-sm text-slate-500">
-          Např. "Cestovní pojištění 2026", "Povinné ručení 2026" — z těchto šablon se pak ve vlně vybírají konkrétní
-          scénáře.
-        </p>
-        {project.scenarioTemplates.length > 0 && (
-          <div className="mb-4 flex flex-wrap gap-2">
-            {project.scenarioTemplates.map((template) => (
-              <Badge key={template.id} tone="neutral">
-                {template.name}
-              </Badge>
-            ))}
-          </div>
-        )}
-        <form action={createScenarioTemplate.bind(null, project.id)} className="flex flex-wrap items-end gap-4">
-          <div className="min-w-[240px] flex-1">
-            <Label htmlFor="templateName">Nová šablona scénáře</Label>
-            <Input id="templateName" name="templateName" placeholder="např. Cestovní pojištění 2026" required />
-          </div>
-          <Button type="submit" variant="secondary">
-            Přidat šablonu
-          </Button>
-        </form>
-      </Card>
+          <Card>
+            <h3 className="mb-1 text-sm font-semibold text-slate-900">Šablony scénářů</h3>
+            <p className="mb-4 text-sm text-slate-500">
+              Např. "Cestovní pojištění 2026", "Povinné ručení 2026" — z těchto šablon se pak ve vlně vybírají
+              konkrétní scénáře.
+            </p>
+            {project.scenarioTemplates.length > 0 && (
+              <div className="mb-4 flex flex-wrap gap-2">
+                {project.scenarioTemplates.map((template) => (
+                  <Badge key={template.id} tone="neutral">
+                    {template.name}
+                  </Badge>
+                ))}
+              </div>
+            )}
+            <form action={createScenarioTemplate.bind(null, project.id)} className="flex flex-wrap items-end gap-4">
+              <div className="min-w-[240px] flex-1">
+                <Label htmlFor="templateName">Nová šablona scénáře</Label>
+                <Input id="templateName" name="templateName" placeholder="např. Cestovní pojištění 2026" required />
+              </div>
+              <Button type="submit" variant="secondary">
+                Přidat šablonu
+              </Button>
+            </form>
+          </Card>
+        </div>
+      </div>
     </div>
   );
 }
