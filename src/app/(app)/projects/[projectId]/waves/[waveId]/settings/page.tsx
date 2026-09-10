@@ -198,6 +198,7 @@ export default async function WaveSettingsPage({
                               <Button
                                 type="submit"
                                 formAction={deleteRule.bind(null, wave.projectId, wave.id, rule.id)}
+                                formNoValidate
                                 variant="ghost"
                                 size="sm"
                               >
@@ -235,7 +236,9 @@ export default async function WaveSettingsPage({
                     </div>
 
                     <div className="flex justify-end border-t border-slate-100 pt-6">
-                      <Button type="submit">Uložit</Button>
+                      <Button type="submit" formNoValidate>
+                        Uložit
+                      </Button>
                     </div>
                   </form>
                 </Card>
