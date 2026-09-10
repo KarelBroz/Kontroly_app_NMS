@@ -124,9 +124,9 @@ model Wave {
   @@map("waves")
 }
 
-// Konkrétní scénář v rámci vlny — instance ScenarioTemplate s vlastními
-// strukturovanými poli (očekávaná pobočka, časové okno, klíčové otázky...)
-// a vlastními pravidly kontroly. Vlna jich může mít víc zároveň.
+// Konkrétní scénář v rámci vlny — instance ScenarioTemplate s vlastním
+// časovým oknem terénu a vlastními pravidly kontroly. Vlna jich může mít
+// víc zároveň.
 model Scenario {
   id                 String           @id @default(cuid())
   waveId             String
@@ -134,7 +134,8 @@ model Scenario {
   scenarioTemplateId String
   scenarioTemplate   ScenarioTemplate @relation(fields: [scenarioTemplateId], references: [id])
 
-  // strukturovaná pole scénáře — JSON, protože se liší projekt od projektu
+  // strukturovaná pole scénáře (jen windowStart/windowEnd = Start/Konec
+  // terénu) — JSON kvůli snadné rozšiřitelnosti do budoucna
   data Json?
 
   createdAt DateTime @default(now())
@@ -202,9 +203,9 @@ model Visit {
 }
 
 enum RuleType {
-  COMPLETENESS
-  SCENARIO
-  ATTACHMENTS
+  REQUIRED // Povinné pole — otázka (Kód otázky) nesmí být prázdná
+  ALLOWED_VALUES // Povolené hodnoty — odpověď musí být jedna ze zadaného seznamu
+  NUMERIC_RANGE // Číselný rozsah — odpověď musí být číslo v zadaném rozsahu
 }
 
 // Pravidlo kontroly navázané na konkrétní scénář (ne na celou vlnu) —
@@ -240,12 +241,24 @@ enum FindingStatus {
   IGNORED
 }
 
+// Automatické kontroly, které běží vždy a všude (napříč všemi projekty/vlnami),
+// bez ohledu na ručně nastavená Rule — viz src/lib/rules/runRules.ts.
+enum SystemCheckType {
+  REAL_DATE_WINDOW // datum návštěvy (sloupec RealDate) mimo Start/Konec terénu scénáře
+  GRAMMAR // možný překlep/pravopisná chyba v odpovědi (offline heuristika)
+}
+
 model Finding {
-  id       String          @id @default(cuid())
-  visitId  String
-  visit    Visit           @relation(fields: [visitId], references: [id], onDelete: Cascade)
-  ruleId   String
-  rule     Rule            @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+  id      String @id @default(cuid())
+  visitId String
+  visit   Visit  @relation(fields: [visitId], references: [id], onDelete: Cascade)
+
+  // buď patří ručně nastavenému pravidlu (ruleId), nebo je to automatická
+  // systémová kontrola (systemCheck) — vždy je nastavené právě jedno z nich.
+  ruleId      String?
+  rule        Rule?            @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+  systemCheck SystemCheckType?
+
   severity FindingSeverity @default(MEDIUM)
   status   FindingStatus   @default(OPEN)
   message  String

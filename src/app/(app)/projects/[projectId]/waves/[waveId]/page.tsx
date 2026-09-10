@@ -6,14 +6,9 @@ import { Badge } from "@/components/ui/Badge";
 import { Label } from "@/components/ui/Label";
 import { Button } from "@/components/ui/Button";
 import { CheckCircle2, XCircle, RefreshCw, Settings, AlertTriangle } from "lucide-react";
-import { FindingStatus } from "@prisma/client";
+import { FindingStatus, RuleType, SystemCheckType } from "@prisma/client";
+import { RULE_TYPE_LABELS, SYSTEM_CHECK_LABELS } from "@/lib/rules/labels";
 import { importWaveFile, rerunWave, updateFindingStatus } from "./actions";
-
-const RULE_TYPE_LABELS: Record<string, string> = {
-  COMPLETENESS: "Vyplněnost a validita",
-  SCENARIO: "Soulad se scénářem",
-  ATTACHMENTS: "Kontrola příloh",
-};
 
 const SEVERITY_TONE: Record<string, "green" | "amber" | "red"> = {
   LOW: "green",
@@ -26,6 +21,33 @@ const STATUS_LABELS: Record<string, string> = {
   RESOLVED: "Vyřešeno",
   IGNORED: "Ignorováno",
 };
+
+function findingTypeLabel(finding: { rule: { type: RuleType } | null; systemCheck: SystemCheckType | null }) {
+  if (finding.rule) return RULE_TYPE_LABELS[finding.rule.type];
+  if (finding.systemCheck) return SYSTEM_CHECK_LABELS[finding.systemCheck] ?? "Systémová kontrola";
+  return "Systémová kontrola";
+}
+
+interface GrammarDetails {
+  field?: string;
+  context?: string;
+  errorWord?: string;
+  reason?: string;
+}
+
+/** Vykreslí kontext chyby s konkrétní chybnou částí červeně zvýrazněnou. */
+function GrammarContext({ context, errorWord }: { context: string; errorWord: string }) {
+  if (!errorWord) return <>{context}</>;
+  const index = context.indexOf(errorWord);
+  if (index === -1) return <>{context}</>;
+  return (
+    <>
+      {context.slice(0, index)}
+      <span className="font-semibold text-red-600">{context.slice(index, index + errorWord.length)}</span>
+      {context.slice(index + errorWord.length)}
+    </>
+  );
+}
 
 export default async function WaveDetailPage({
   params,
@@ -176,7 +198,13 @@ export default async function WaveDetailPage({
               <p className="px-6 py-6 text-sm text-slate-500">Zatím žádné nálezy.</p>
             ) : (
               <div className="divide-y divide-slate-100">
-                {allFindings.map((finding) => (
+                {allFindings.map((finding) => {
+                  const grammarDetails =
+                    finding.systemCheck === SystemCheckType.GRAMMAR
+                      ? (finding.details as GrammarDetails | null)
+                      : null;
+
+                  return (
                   <div key={finding.id} className="flex items-center justify-between gap-4 px-6 py-4">
                     <div>
                       <p className="text-sm font-medium text-slate-900">
@@ -185,10 +213,22 @@ export default async function WaveDetailPage({
                           · {finding.visit.scenario.scenarioTemplate.name}
                         </span>
                       </p>
-                      <p className="mt-0.5 text-sm text-slate-600">{finding.message}</p>
+                      {grammarDetails?.context ? (
+                        <p className="mt-0.5 text-sm text-slate-600">
+                          {grammarDetails.field && (
+                            <span className="font-medium text-slate-700">{grammarDetails.field}: </span>
+                          )}
+                          <GrammarContext context={grammarDetails.context} errorWord={grammarDetails.errorWord ?? ""} />
+                          {grammarDetails.reason && (
+                            <span className="ml-1 text-xs text-slate-400">({grammarDetails.reason})</span>
+                          )}
+                        </p>
+                      ) : (
+                        <p className="mt-0.5 text-sm text-slate-600">{finding.message}</p>
+                      )}
                       <div className="mt-2 flex gap-2">
                         <Badge tone={SEVERITY_TONE[finding.severity]}>{finding.severity}</Badge>
-                        <Badge tone="neutral">{RULE_TYPE_LABELS[finding.rule.type]}</Badge>
+                        <Badge tone="neutral">{findingTypeLabel(finding)}</Badge>
                         <Badge tone={finding.status === FindingStatus.OPEN ? "red" : "green"}>
                           {STATUS_LABELS[finding.status]}
                         </Badge>
@@ -227,7 +267,8 @@ export default async function WaveDetailPage({
                       </div>
                     )}
                   </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </Card>

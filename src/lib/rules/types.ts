@@ -1,16 +1,16 @@
 import { FindingSeverity } from "@prisma/client";
 
+// Scénář teď nese jen okno terénu ("Start terénu" / "Konec terénu").
+// Zobrazovaná pobočka a klíčové otázky byly odstraněny — kontrola odpovědí
+// se řeší přes pravidla navázaná na "Kód otázky" (viz matchQuestion.ts).
 export interface ScenarioData {
-  expectedBranch?: string;
   windowStart?: string;
   windowEnd?: string;
-  keyQuestions?: Array<{ question: string; expectedAnswer: string }>;
 }
 
 export interface RuleCheckInput {
   visitData: Record<string, unknown>;
   ruleConfig: Record<string, unknown>;
-  scenario: ScenarioData | null;
 }
 
 export interface RuleCheckResult {

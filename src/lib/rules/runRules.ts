@@ -1,19 +1,24 @@
 import { prisma } from "@/lib/prisma";
-import { checkCompleteness } from "./completeness";
-import { checkScenario } from "./scenario";
-import { checkAttachments } from "./attachments";
+import { checkRequired } from "./required";
+import { checkAllowedValues } from "./allowedValues";
+import { checkNumericRange } from "./numericRange";
+import { checkRealDateWindow, buildRealDateMessage } from "./realDateWindow";
+import { checkTextForIssues } from "./grammarCheck";
 import type { RuleChecker, ScenarioData } from "./types";
-import { RuleType } from "@prisma/client";
+import { RuleType, FindingSeverity, SystemCheckType } from "@prisma/client";
 
 const CHECKERS: Record<RuleType, RuleChecker> = {
-  [RuleType.COMPLETENESS]: checkCompleteness,
-  [RuleType.SCENARIO]: checkScenario,
-  [RuleType.ATTACHMENTS]: checkAttachments,
+  [RuleType.REQUIRED]: checkRequired,
+  [RuleType.ALLOWED_VALUES]: checkAllowedValues,
+  [RuleType.NUMERIC_RANGE]: checkNumericRange,
 };
 
 /**
- * Spustí všechna aktivní pravidla SCÉNÁŘE, ke kterému návštěva patří
- * (viz Visit.scenarioId — nastavuje se při importu), a uloží nálezy.
+ * Spustí kontrolu jedné návštěvy: (1) ručně nastavená pravidla scénáře,
+ * ke kterému návštěva patří (viz Visit.scenarioId — nastavuje se při
+ * importu), a (2) dvě automatické kontroly, které běží VŽDY A VŠUDE
+ * napříč celou appkou bez ohledu na nastavená pravidla — datum návštěvy
+ * (RealDate vs. okno terénu scénáře) a možné překlepy v odpovědích.
  */
 export async function runRulesForVisit(visitId: string) {
   const visit = await prisma.visit.findUnique({
@@ -25,10 +30,11 @@ export async function runRulesForVisit(visitId: string) {
   const scenarioData = (visit.scenario.data as ScenarioData | null) ?? null;
   const visitData = visit.data as Record<string, unknown>;
 
+  // 1) ručně nastavená pravidla scénáře
   for (const rule of visit.scenario.rules) {
     const checker = CHECKERS[rule.type];
     const config = (rule.config as Record<string, unknown>) ?? {};
-    const results = checker({ visitData, ruleConfig: config, scenario: scenarioData });
+    const results = checker({ visitData, ruleConfig: config });
 
     for (const result of results) {
       await prisma.finding.create({
@@ -42,6 +48,39 @@ export async function runRulesForVisit(visitId: string) {
         },
       });
     }
+  }
+
+  // 2) automatická kontrola data návštěvy (RealDate vs. Start/Konec terénu)
+  const dateIssue = checkRealDateWindow(visitData, scenarioData);
+  if (dateIssue) {
+    await prisma.finding.create({
+      data: {
+        visitId: visit.id,
+        systemCheck: SystemCheckType.REAL_DATE_WINDOW,
+        severity: FindingSeverity.MEDIUM,
+        message: buildRealDateMessage(dateIssue, scenarioData),
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        details: dateIssue as any,
+      },
+    });
+  }
+
+  // 3) automatická kontrola překlepů — každé textové pole odpovědí
+  for (const [field, value] of Object.entries(visitData)) {
+    if (typeof value !== "string") continue;
+    const issue = checkTextForIssues(value);
+    if (!issue) continue;
+
+    await prisma.finding.create({
+      data: {
+        visitId: visit.id,
+        systemCheck: SystemCheckType.GRAMMAR,
+        severity: FindingSeverity.MEDIUM,
+        message: `Možný překlep v odpovědi "${field}" — ${issue.reason}`,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        details: { field, ...issue } as any,
+      },
+    });
   }
 }
 

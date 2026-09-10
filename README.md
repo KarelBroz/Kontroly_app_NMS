@@ -36,15 +36,22 @@ Import na úrovni vlny porovnává příchozí řádky s tím, co už ve vlně e
 - **existující beze změny obsahu** (dle `contentHash`, hash všech importovaných polí) → přeskočí se,
 - **existující se změněným obsahem** → data se aktualizují, staré nálezy k návštěvě se smažou a kontrola proběhne znovu.
 
-## Pravidla kontroly
+## Scénáře a pravidla kontroly
 
-Tři typy, nastavitelné v UI per vlna, logika v [`src/lib/rules`](src/lib/rules):
+Vlna může mít 1..N **scénářů** (instance sdílených `ScenarioTemplate` daného projektu, např. "Cestovní pojištění 2026"). Každý scénář nese jen okno terénu (**Start terénu** / **Konec terénu**) a má svoje vlastní pravidla — nová pravidla lze při zakládání scénáře nakopírovat z jiného existujícího (viz `copyRulesToScenario` v `src/app/(app)/projects/[projectId]/waves/[waveId]/actions.ts`).
 
-- `COMPLETENESS` — vyplněnost a validita odpovědí (povinná pole)
-- `SCENARIO` — soulad se scénářem vlny (pobočka, časové okno, klíčové otázky/odpovědi)
-- `ATTACHMENTS` — kontrola požadovaných příloh (fotky, audio)
+Import CSV/Excel má v prvním řádku názvy sloupců — buď pomocné (např. `RealDate`), nebo odpověď na otázku ve formátu `KÓD: textace` (např. `X20: Délka celé návštěvy (minuty)`). Pravidla se zadávají podle **kódu otázky** (`src/lib/rules/matchQuestion.ts` najde sloupec podle části před dvojtečkou), ne podle celé textace. Tři typy pravidel, logika v [`src/lib/rules`](src/lib/rules):
 
-Kontrola běží automaticky při importu (na nových/změněných řádcích) a lze ji ručně spustit znovu nad celou vlnou.
+- `REQUIRED` — otázka nesmí být prázdná
+- `ALLOWED_VALUES` — odpověď musí být jedna z povoleného seznamu hodnot
+- `NUMERIC_RANGE` — odpověď musí být číslo v zadaném rozsahu
+
+Kromě ručně nastavených pravidel běží **vždy a všude** (napříč všemi projekty/vlnami, bez konfigurace) dvě automatické kontroly v `runRulesForVisit`:
+
+- **Datum návštěvy** — sloupec `RealDate` musí spadat do okna terénu scénáře (Start/Konec terénu).
+- **Překlepy/pravopis** — lehká offline heuristika (opakující se písmeno/slovo, vícenásobné mezery) nad každou textovou odpovědí; nálezy jsou vždy `MEDIUM` (žlutá), v přehledu nálezů se chybné slovo zvýrazňuje červeně přímo v kontextu. Zatím bez AI (viz "Budoucí rozšíření") — chytá jen zjevné mechanické chyby, ne skutečnou gramatiku/pravopis.
+
+Kontrola běží automaticky při importu (na nových/změněných řádcích) a lze ji ručně spustit znovu nad celou vlnou nebo jedním scénářem.
 
 ## Lokální spuštění
 
@@ -86,3 +93,4 @@ Appka nemá natvrdo zadanou doménu — vše jde přes env proměnné (`NEXT_PUB
 - **Napojení na Navigátor** — druhý `ImportSource` (API místo souboru), viz `src/lib/import`.
 - **Role uživatelů** — `User` model je připravený na přidání pole `role` bez velké přestavby.
 - **Migrace místo `db push`** — až bude appka v ostrém provozu s reálnými daty.
+- **Kontrola gramatiky přes AI** — offline heuristika chytá jen mechanické chyby; přesnější kontrola (skutečná gramatika/pravopis) by šla přes Claude API (`ANTHROPIC_API_KEY`), zatím vědomě odloženo kvůli nákladům a rychlosti importu velkých dávek dat.

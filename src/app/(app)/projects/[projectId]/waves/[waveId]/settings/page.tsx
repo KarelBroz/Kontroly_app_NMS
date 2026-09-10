@@ -5,9 +5,9 @@ import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
-import { Textarea } from "@/components/ui/Textarea";
 import { Button } from "@/components/ui/Button";
 import { Trash2 } from "lucide-react";
+import { RULE_TYPE_LABELS } from "@/lib/rules/labels";
 import {
   updateWaveInfo,
   addScenario,
@@ -34,17 +34,9 @@ const MONTHS = [
   "Prosinec",
 ];
 
-const RULE_TYPE_LABELS: Record<string, string> = {
-  COMPLETENESS: "Vyplněnost a validita",
-  SCENARIO: "Soulad se scénářem",
-  ATTACHMENTS: "Kontrola příloh",
-};
-
 interface ScenarioDataShape {
-  expectedBranch?: string;
   windowStart?: string;
   windowEnd?: string;
-  keyQuestions?: Array<{ question: string; expectedAnswer: string }>;
 }
 
 export default async function WaveSettingsPage({
@@ -160,62 +152,46 @@ export default async function WaveSettingsPage({
                   >
                     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                       <div>
-                        <Label htmlFor={`expectedBranch-${scenario.id}`}>Očekávaná pobočka / lokalita</Label>
+                        <Label htmlFor={`windowStart-${scenario.id}`}>Start terénu</Label>
                         <Input
-                          id={`expectedBranch-${scenario.id}`}
-                          name="expectedBranch"
-                          defaultValue={data?.expectedBranch ?? ""}
+                          id={`windowStart-${scenario.id}`}
+                          name="windowStart"
+                          type="datetime-local"
+                          defaultValue={data?.windowStart ?? ""}
                         />
                       </div>
-                      <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <Label htmlFor={`windowStart-${scenario.id}`}>Časové okno od</Label>
-                          <Input
-                            id={`windowStart-${scenario.id}`}
-                            name="windowStart"
-                            type="datetime-local"
-                            defaultValue={data?.windowStart ?? ""}
-                          />
-                        </div>
-                        <div>
-                          <Label htmlFor={`windowEnd-${scenario.id}`}>Časové okno do</Label>
-                          <Input
-                            id={`windowEnd-${scenario.id}`}
-                            name="windowEnd"
-                            type="datetime-local"
-                            defaultValue={data?.windowEnd ?? ""}
-                          />
-                        </div>
+                      <div>
+                        <Label htmlFor={`windowEnd-${scenario.id}`}>Konec terénu</Label>
+                        <Input
+                          id={`windowEnd-${scenario.id}`}
+                          name="windowEnd"
+                          type="datetime-local"
+                          defaultValue={data?.windowEnd ?? ""}
+                        />
                       </div>
                     </div>
-                    <div>
-                      <Label htmlFor={`keyQuestions-${scenario.id}`}>
-                        Klíčové otázky a očekávané odpovědi (jedna na řádek, ve formátu{" "}
-                        <code className="rounded bg-slate-100 px-1">otázka | očekávaná odpověď</code>)
-                      </Label>
-                      <Textarea
-                        id={`keyQuestions-${scenario.id}`}
-                        name="keyQuestions"
-                        rows={3}
-                        defaultValue={(data?.keyQuestions ?? [])
-                          .map((q) => `${q.question} | ${q.expectedAnswer}`)
-                          .join("\n")}
-                      />
-                    </div>
+                    <p className="text-xs text-slate-500">
+                      Datum a čas návštěvy (sloupec "RealDate" v datech) se proti tomuhle oknu kontroluje
+                      automaticky u každého importu.
+                    </p>
                     <Button type="submit" size="sm">
                       Uložit scénář
                     </Button>
                   </form>
 
                   <div className="mt-6 border-t border-slate-100 pt-6">
-                    <h4 className="mb-3 text-sm font-semibold text-slate-900">Pravidla kontroly</h4>
+                    <h4 className="mb-1 text-sm font-semibold text-slate-900">Pravidla kontroly</h4>
+                    <p className="mb-3 text-xs text-slate-500">
+                      Kód otázky = část názvu sloupce před dvojtečkou (např. u sloupce "X20: Délka celé návštěvy
+                      (minuty)" je kód otázky "X20").
+                    </p>
                     <form
                       action={createRule.bind(null, wave.projectId, wave.id, scenario.id)}
                       className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4"
                     >
                       <div>
-                        <Label htmlFor={`ruleName-${scenario.id}`}>Název</Label>
-                        <Input id={`ruleName-${scenario.id}`} name="name" required />
+                        <Label htmlFor={`questionCode-${scenario.id}`}>Kód otázky</Label>
+                        <Input id={`questionCode-${scenario.id}`} name="questionCode" placeholder="X20" required />
                       </div>
                       <div>
                         <Label htmlFor={`ruleType-${scenario.id}`}>Typ</Label>
@@ -225,16 +201,24 @@ export default async function WaveSettingsPage({
                           required
                           className="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm text-slate-900 focus:border-brand-blue-400 focus:outline-none focus:ring-2 focus:ring-brand-blue-100"
                         >
-                          <option value="COMPLETENESS">Vyplněnost a validita</option>
-                          <option value="SCENARIO">Soulad se scénářem</option>
-                          <option value="ATTACHMENTS">Kontrola příloh</option>
+                          <option value="REQUIRED">{RULE_TYPE_LABELS.REQUIRED}</option>
+                          <option value="ALLOWED_VALUES">{RULE_TYPE_LABELS.ALLOWED_VALUES}</option>
+                          <option value="NUMERIC_RANGE">{RULE_TYPE_LABELS.NUMERIC_RANGE}</option>
                         </select>
                       </div>
                       <div className="lg:col-span-2">
-                        <Label htmlFor={`ruleConfig-${scenario.id}`}>Konfigurace (JSON)</Label>
-                        <Input id={`ruleConfig-${scenario.id}`} name="config" placeholder='{"requiredFields":["q1"]}' />
+                        <Label htmlFor={`allowedValue-${scenario.id}`}>Povolená hodnota</Label>
+                        <Input
+                          id={`allowedValue-${scenario.id}`}
+                          name="allowedValue"
+                          placeholder='např. "Ano, Spíše ano" nebo "0-180"'
+                        />
                       </div>
                       <div className="sm:col-span-2 lg:col-span-4">
+                        <p className="mb-2 text-xs text-slate-400">
+                          Povolená hodnota se použije jen u typů "Povolené hodnoty" (seznam oddělený čárkou) a
+                          "Číselný rozsah" (formát min-max, např. 0-180) — u "Povinné pole" se ignoruje.
+                        </p>
                         <Button type="submit" size="sm" variant="secondary">
                           Přidat pravidlo
                         </Button>

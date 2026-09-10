@@ -7,7 +7,8 @@ import { revalidatePath } from "next/cache";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { importVisitsFromFile } from "@/lib/import/importVisits";
-import { rerunRulesForWave } from "@/lib/rules/runRules";
+import { rerunRulesForWave, rerunRulesForScenario } from "@/lib/rules/runRules";
+import { RULE_TYPE_LABELS } from "@/lib/rules/labels";
 
 function wavePath(projectId: string, waveId: string) {
   return `/projects/${projectId}/waves/${waveId}`;
@@ -188,35 +189,25 @@ export async function updateScenarioData(
   scenarioId: string,
   formData: FormData
 ) {
-  const expectedBranch = String(formData.get("expectedBranch") || "").trim();
   const windowStart = String(formData.get("windowStart") || "").trim();
   const windowEnd = String(formData.get("windowEnd") || "").trim();
-  const keyQuestionsRaw = String(formData.get("keyQuestions") || "").trim();
-
-  const keyQuestions = keyQuestionsRaw
-    .split("\n")
-    .map((line) => line.trim())
-    .filter(Boolean)
-    .map((line) => {
-      const [question, expectedAnswer] = line.split("|").map((part) => part?.trim() ?? "");
-      return { question, expectedAnswer: expectedAnswer ?? "" };
-    })
-    .filter((item) => item.question);
 
   await prisma.scenario.update({
     where: { id: scenarioId },
     data: {
       data: {
-        expectedBranch: expectedBranch || undefined,
         windowStart: windowStart || undefined,
         windowEnd: windowEnd || undefined,
-        keyQuestions,
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } as any,
     },
   });
 
+  // okno terénu ovlivňuje automatickou kontrolu data (RealDate) u už naimportovaných návštěv
+  await rerunRulesForScenario(scenarioId);
+
   revalidatePath(settingsPath(projectId, waveId));
+  revalidatePath(wavePath(projectId, waveId));
   redirect(`${settingsPath(projectId, waveId)}?saved=1`);
 }
 
@@ -239,34 +230,66 @@ export async function removeScenario(projectId: string, waveId: string, scenario
 // ---------- Nastavení vlny: pravidla (per scénář) ----------
 
 export async function createRule(projectId: string, waveId: string, scenarioId: string, formData: FormData) {
+  const questionCode = String(formData.get("questionCode") || "").trim();
   const typeRaw = String(formData.get("type") || "");
-  const name = String(formData.get("name") || "").trim();
-  const configRaw = String(formData.get("config") || "{}").trim();
+  const allowedValueRaw = String(formData.get("allowedValue") || "").trim();
 
-  if (!name || !typeRaw) {
-    redirect(`${settingsPath(projectId, waveId)}?error=${encodeURIComponent("Vyplňte název a typ pravidla.")}`);
+  if (!questionCode || !typeRaw) {
+    redirect(`${settingsPath(projectId, waveId)}?error=${encodeURIComponent("Vyplňte kód otázky a typ.")}`);
   }
 
-  let config: Record<string, unknown> = {};
-  try {
-    config = JSON.parse(configRaw || "{}");
-  } catch {
-    redirect(
-      `${settingsPath(projectId, waveId)}?error=${encodeURIComponent("Konfigurace pravidla není platný JSON.")}`
-    );
+  if (!Object.values(RuleType).includes(typeRaw as RuleType)) {
+    redirect(`${settingsPath(projectId, waveId)}?error=${encodeURIComponent("Neplatný typ pravidla.")}`);
   }
+  const type = typeRaw as RuleType;
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const config: Record<string, any> = { questionCode };
+
+  if (type === RuleType.ALLOWED_VALUES) {
+    const values = allowedValueRaw
+      .split(",")
+      .map((v) => v.trim())
+      .filter(Boolean);
+    if (values.length === 0) {
+      redirect(
+        `${settingsPath(projectId, waveId)}?error=${encodeURIComponent(
+          "U typu \"Povolené hodnoty\" zadej alespoň jednu hodnotu (odděl čárkou)."
+        )}`
+      );
+    }
+    config.allowedValues = values;
+  }
+
+  if (type === RuleType.NUMERIC_RANGE) {
+    const match = allowedValueRaw.match(/^(-?\d+(?:[.,]\d+)?)\s*-\s*(-?\d+(?:[.,]\d+)?)$/);
+    if (!match) {
+      redirect(
+        `${settingsPath(projectId, waveId)}?error=${encodeURIComponent(
+          'U typu "Číselný rozsah" zadej rozsah ve formátu min-max, např. 0-180.'
+        )}`
+      );
+    }
+    config.min = Number(match[1].replace(",", "."));
+    config.max = Number(match[2].replace(",", "."));
+  }
+
+  const name = `${questionCode} — ${RULE_TYPE_LABELS[type]}`;
 
   await prisma.rule.create({
     data: {
       scenarioId,
-      type: typeRaw as RuleType,
+      type,
       name,
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       config: config as any,
     },
   });
 
+  await rerunRulesForScenario(scenarioId);
+
   revalidatePath(settingsPath(projectId, waveId));
+  revalidatePath(wavePath(projectId, waveId));
   redirect(`${settingsPath(projectId, waveId)}?saved=${encodeURIComponent("Pravidlo přidáno")}`);
 }
 
