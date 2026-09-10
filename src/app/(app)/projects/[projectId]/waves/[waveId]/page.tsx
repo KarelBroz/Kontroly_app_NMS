@@ -7,20 +7,33 @@ import { Label } from "@/components/ui/Label";
 import { Button } from "@/components/ui/Button";
 import { CheckCircle2, XCircle, RefreshCw, Settings, AlertTriangle, ExternalLink } from "lucide-react";
 import { FindingStatus, RuleType, SystemCheckType } from "@prisma/client";
+import type { BadgeTone } from "@/components/ui/Badge";
 import { RULE_TYPE_LABELS, SYSTEM_CHECK_LABELS } from "@/lib/rules/labels";
 import { isVisitDataEmpty } from "@/lib/visits/emptyVisit";
+import { cn } from "@/lib/utils";
 import { importWaveFile, rerunWave, updateFindingStatus } from "./actions";
 
-const SEVERITY_TONE: Record<string, "green" | "amber" | "red"> = {
-  LOW: "green",
-  MEDIUM: "amber",
-  HIGH: "red",
+// Každá kategorie nálezu má vlastní barvu, ať se dá napříč přehledem rychle rozlišit.
+const RULE_TYPE_TONE: Record<RuleType, BadgeTone> = {
+  [RuleType.REQUIRED]: "blue",
+  [RuleType.ALLOWED_VALUES]: "purple",
+  [RuleType.NUMERIC_RANGE]: "cyan",
+};
+const SYSTEM_CHECK_TONE: Record<string, BadgeTone> = {
+  [SystemCheckType.REAL_DATE_WINDOW]: "amber",
+  [SystemCheckType.GRAMMAR]: "indigo",
 };
 
 function findingTypeLabel(finding: { rule: { type: RuleType } | null; systemCheck: SystemCheckType | null }) {
   if (finding.rule) return RULE_TYPE_LABELS[finding.rule.type];
   if (finding.systemCheck) return SYSTEM_CHECK_LABELS[finding.systemCheck] ?? "Systémová kontrola";
   return "Systémová kontrola";
+}
+
+function findingTypeTone(finding: { rule: { type: RuleType } | null; systemCheck: SystemCheckType | null }): BadgeTone {
+  if (finding.rule) return RULE_TYPE_TONE[finding.rule.type];
+  if (finding.systemCheck) return SYSTEM_CHECK_TONE[finding.systemCheck] ?? "neutral";
+  return "neutral";
 }
 
 interface GrammarDetails {
@@ -49,10 +62,10 @@ function OpenInSourceButton() {
   return (
     <span
       className="inline-flex shrink-0 cursor-not-allowed items-center gap-1.5 rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-400"
-      title="Proklik na zdrojová data — URL zatím není nastavená"
+      title="Proklik do Navigátoru — URL zatím není nastavená"
     >
       <ExternalLink className="h-3.5 w-3.5" />
-      Otevřít v systému
+      Otevřít v Navigátoru
     </span>
   );
 }
@@ -225,9 +238,9 @@ export default async function WaveDetailPage({
               <h2 className="text-base font-semibold text-slate-900">Nálezy</h2>
               {wave.visits.length > 0 && (
                 <div className="flex flex-wrap gap-2">
-                  <Badge tone="red">{errorVisits.length} s nálezy</Badge>
-                  <Badge tone="green">{cleanVisits.length} bez nálezů</Badge>
-                  {emptyVisits.length > 0 && <Badge tone="neutral">{emptyVisits.length} bez odpovědí</Badge>}
+                  <Badge tone="neutral">{wave.visits.length} MS celkem</Badge>
+                  <Badge tone="red">{errorVisits.length} MS s chybou</Badge>
+                  <Badge tone="green">{cleanVisits.length + emptyVisits.length} MS bez chyby</Badge>
                 </div>
               )}
             </div>
@@ -289,7 +302,10 @@ export default async function WaveDetailPage({
                             return (
                               <div
                                 key={finding.id}
-                                className="flex items-center justify-between gap-3 rounded-xl bg-slate-50 px-3 py-2"
+                                className={cn(
+                                  "flex items-center justify-between gap-3 rounded-xl px-3 py-2",
+                                  isOpen ? "bg-red-50" : "bg-brand-green-50"
+                                )}
                               >
                                 <div className="min-w-0 flex-1">
                                   {grammarDetails?.context ? (
@@ -310,32 +326,52 @@ export default async function WaveDetailPage({
                                   ) : (
                                     <p className="text-sm text-slate-700">{finding.message}</p>
                                   )}
-                                  <div className="mt-1 flex flex-wrap gap-1.5">
-                                    <Badge tone={SEVERITY_TONE[finding.severity]}>{finding.severity}</Badge>
-                                    <Badge tone="neutral">{findingTypeLabel(finding)}</Badge>
+                                  <div className="mt-1.5">
+                                    <Badge tone={findingTypeTone(finding)} className="font-semibold">
+                                      {findingTypeLabel(finding)}
+                                    </Badge>
                                   </div>
                                 </div>
-                                <form
-                                  action={updateFindingStatus.bind(
-                                    null,
-                                    wave.projectId,
-                                    wave.id,
-                                    finding.id,
-                                    isOpen ? FindingStatus.RESOLVED : FindingStatus.OPEN
-                                  )}
-                                >
-                                  <button
-                                    type="submit"
-                                    title={isOpen ? "Označit jako opraveno" : "Označit jako chybu (znovu otevřít)"}
-                                    className="shrink-0 rounded-full p-1 hover:bg-slate-200"
-                                  >
-                                    {isOpen ? (
-                                      <XCircle className="h-5 w-5 text-red-500" />
-                                    ) : (
-                                      <CheckCircle2 className="h-5 w-5 text-brand-green-600" />
+                                <div className="flex shrink-0 items-center gap-1">
+                                  <form
+                                    action={updateFindingStatus.bind(
+                                      null,
+                                      wave.projectId,
+                                      wave.id,
+                                      finding.id,
+                                      FindingStatus.OPEN
                                     )}
-                                  </button>
-                                </form>
+                                  >
+                                    <button
+                                      type="submit"
+                                      disabled={isOpen}
+                                      title="Chyba (neopraveno)"
+                                      className="rounded-full p-1 disabled:cursor-default"
+                                    >
+                                      <XCircle className={cn("h-5 w-5", isOpen ? "text-red-500" : "text-slate-300")} />
+                                    </button>
+                                  </form>
+                                  <form
+                                    action={updateFindingStatus.bind(
+                                      null,
+                                      wave.projectId,
+                                      wave.id,
+                                      finding.id,
+                                      FindingStatus.RESOLVED
+                                    )}
+                                  >
+                                    <button
+                                      type="submit"
+                                      disabled={!isOpen}
+                                      title="Opraveno"
+                                      className="rounded-full p-1 disabled:cursor-default"
+                                    >
+                                      <CheckCircle2
+                                        className={cn("h-5 w-5", !isOpen ? "text-brand-green-600" : "text-slate-300")}
+                                      />
+                                    </button>
+                                  </form>
+                                </div>
                               </div>
                             );
                           })}
