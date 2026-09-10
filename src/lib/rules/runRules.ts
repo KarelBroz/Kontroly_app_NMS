@@ -4,6 +4,7 @@ import { checkAllowedValues } from "./allowedValues";
 import { checkNumericRange } from "./numericRange";
 import { checkRealDateWindow, buildRealDateMessage } from "./realDateWindow";
 import { checkTextForIssues } from "./grammarCheck";
+import { isQuestionColumn } from "./matchQuestion";
 import type { RuleChecker, ScenarioData } from "./types";
 import { RuleType, FindingSeverity, SystemCheckType } from "@prisma/client";
 
@@ -65,9 +66,12 @@ export async function runRulesForVisit(visitId: string) {
     });
   }
 
-  // 3) automatická kontrola překlepů — každé textové pole odpovědí
+  // 3) automatická kontrola překlepů — jen ve skutečných odpovědích na otázky
+  // (sloupce ve tvaru "KÓD: textace", např. "X20: ..."), ne v pomocných
+  // sloupcích jako "Control:", "Email:", "Note_2:" nebo "RealDate".
   for (const [field, value] of Object.entries(visitData)) {
     if (typeof value !== "string") continue;
+    if (!isQuestionColumn(field)) continue;
     const issue = checkTextForIssues(value);
     if (!issue) continue;
 

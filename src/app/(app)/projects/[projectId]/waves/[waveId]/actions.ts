@@ -52,6 +52,20 @@ export async function importWaveFile(projectId: string, waveId: string, formData
   );
 }
 
+/**
+ * Smaže celý import (a s ním i všechny návštěvy, které tenhle konkrétní
+ * soubor naposledy přinesl/změnil — Visit.lastImportBatchId) — ochrana
+ * proti omylem nahranému špatnému souboru. Návštěvy, které mezitím
+ * přepsal NOVĚJŠÍ import, zůstanou beze změny (nejsou to už "data téhle
+ * dávky").
+ */
+export async function deleteImportBatch(projectId: string, waveId: string, batchId: string, _formData: FormData) {
+  await prisma.visit.deleteMany({ where: { lastImportBatchId: batchId } });
+  await prisma.importBatch.delete({ where: { id: batchId } });
+  revalidatePath(wavePath(projectId, waveId));
+  redirect(`${wavePath(projectId, waveId)}?saved=${encodeURIComponent("Import smazán")}`);
+}
+
 export async function rerunWave(projectId: string, waveId: string) {
   await rerunRulesForWave(waveId);
   revalidatePath(wavePath(projectId, waveId));

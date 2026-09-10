@@ -5,13 +5,14 @@ import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Label } from "@/components/ui/Label";
 import { Button } from "@/components/ui/Button";
-import { CheckCircle2, XCircle, RefreshCw, Settings, AlertTriangle, ExternalLink } from "lucide-react";
+import { CheckCircle2, XCircle, RefreshCw, Settings, AlertTriangle, ExternalLink, Trash2 } from "lucide-react";
 import { FindingStatus, RuleType, SystemCheckType } from "@prisma/client";
 import type { BadgeTone } from "@/components/ui/Badge";
 import { RULE_TYPE_LABELS, SYSTEM_CHECK_LABELS } from "@/lib/rules/labels";
 import { isVisitDataEmpty } from "@/lib/visits/emptyVisit";
+import { ConfirmSubmitButton } from "@/components/ui/ConfirmSubmitButton";
 import { cn } from "@/lib/utils";
-import { importWaveFile, rerunWave, updateFindingStatus } from "./actions";
+import { importWaveFile, rerunWave, updateFindingStatus, deleteImportBatch } from "./actions";
 
 // Každá kategorie nálezu má vlastní barvu, ať se dá napříč přehledem rychle rozlišit.
 const RULE_TYPE_TONE: Record<RuleType, BadgeTone> = {
@@ -222,10 +223,22 @@ export default async function WaveDetailPage({
                       <span className="text-slate-700">{batch.fileName}</span>
                       <Badge tone="blue">{batch.scenario.scenarioTemplate.name}</Badge>
                     </div>
-                    <span className="text-slate-500">
-                      {new Date(batch.createdAt).toLocaleString("cs-CZ")} · +{batch.rowsNew} nových ·{" "}
-                      {batch.rowsSkipped} přeskočeno · {batch.rowsRechecked} překontrolováno
-                    </span>
+                    <div className="flex items-center gap-3">
+                      <span className="text-slate-500">
+                        {new Date(batch.createdAt).toLocaleString("cs-CZ")} · +{batch.rowsNew} nových ·{" "}
+                        {batch.rowsSkipped} přeskočeno · {batch.rowsRechecked} překontrolováno
+                      </span>
+                      <form action={deleteImportBatch.bind(null, wave.projectId, wave.id, batch.id)}>
+                        <ConfirmSubmitButton
+                          type="submit"
+                          confirmMessage={`Opravdu smazat import "${batch.fileName}"? Smažou se i všechny návštěvy, které naposledy přinesl.`}
+                          title="Smazat tenhle import (a návštěvy, které naposledy přinesl)"
+                          className="rounded-lg p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-600"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </ConfirmSubmitButton>
+                      </form>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -286,10 +299,10 @@ export default async function WaveDetailPage({
                       </div>
 
                       {visit.findings.length === 0 ? (
-                        <p className="flex items-center gap-1.5 text-sm text-brand-green-700">
+                        <div className="flex items-center gap-1.5 rounded-xl bg-brand-green-50 px-3 py-2 text-sm font-medium text-brand-green-700">
                           <CheckCircle2 className="h-4 w-4" />
                           Bez nálezů
-                        </p>
+                        </div>
                       ) : (
                         <div className="space-y-1.5">
                           {visit.findings.map((finding) => {

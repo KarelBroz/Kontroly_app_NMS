@@ -19,3 +19,21 @@ export function findAnswerByQuestionCode(
   }
   return undefined;
 }
+
+// Krátký alfanumerický kód otázky (X20, F10, D10t...) — písmena, pak
+// číslice, volitelně pár koncových písmen. Popisné/pomocné názvy sloupců
+// jako "Control", "Email", "Note_2" nebo "RealDate" tenhle tvar nemají
+// (chybí jim číslice, nebo mají podtržítko), takže se od skutečných
+// otázek dají rozeznat automaticky.
+const QUESTION_CODE_PATTERN = /^[A-Za-z]{1,3}\d{1,4}[A-Za-z]{0,2}$/;
+
+/**
+ * True, pokud název sloupce vypadá jako odpověď na otázku (kód otázky
+ * před dvojtečkou, nebo celý název, odpovídá vzoru výše) — používá se
+ * k omezení automatické kontroly pravopisu jen na skutečné odpovědi,
+ * ne na pomocné/metadatové sloupce.
+ */
+export function isQuestionColumn(columnHeader: string): boolean {
+  const prefix = columnHeader.split(":")[0]?.trim() ?? "";
+  return QUESTION_CODE_PATTERN.test(prefix);
+}
