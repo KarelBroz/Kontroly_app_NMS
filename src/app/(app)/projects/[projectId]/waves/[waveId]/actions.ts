@@ -310,7 +310,11 @@ export async function createRule(projectId: string, waveId: string, scenarioId: 
   redirect(`${settingsPath(projectId, waveId)}?saved=${encodeURIComponent("Pravidlo přidáno")}`);
 }
 
-export async function deleteRule(projectId: string, waveId: string, ruleId: string) {
+// Explicitní `_formData` parametr (i když se nečte) — použité přes `formAction`
+// na tlačítku uvnitř společného formuláře se scénářem; bez tohoto parametru
+// (0 zbývajících argumentů po .bind) se v testu ukázalo, že se akce
+// přes formAction nespustí správně.
+export async function deleteRule(projectId: string, waveId: string, ruleId: string, _formData: FormData) {
   await prisma.rule.delete({ where: { id: ruleId } });
   revalidatePath(settingsPath(projectId, waveId));
   redirect(`${settingsPath(projectId, waveId)}?saved=${encodeURIComponent("Smazáno")}`);
