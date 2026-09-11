@@ -76,9 +76,14 @@ export async function rerunWave(projectId: string, waveId: string) {
 /**
  * Volá se přímo z klienta (FindingRow.tsx), NE přes <form> — proto tu
  * záměrně není redirect() (ten by i tak vynutil navigaci). Stránka vlny se
- * po kliknutí NEPŘEKRESLÍ hned (viz FindingRow — optimistické UI), jen
- * revalidatePath označí cestu jako neaktuální, ať se při dalším skutečném
- * načtení (F5, návrat na stránku) seznam správně přeskládá.
+ * po kliknutí NEPŘEKRESLÍ hned (viz FindingRow — optimistické UI) —
+ * záměrně tu proto NENÍ ani revalidatePath(): u Next.js Server Actions
+ * volaných přímo (ne přes <form action>) totiž i tak spustí automatický
+ * refresh AKTUÁLNÍ stránky hned po dokončení, což by seznam přeskládalo
+ * okamžitě (přesně to, co optimistické UI má obejít). Stránka vlny čte
+ * data vždy živě z databáze (žádný fetch()/unstable_cache), takže se
+ * správně přeskládá samo při dalším skutečném načtení (F5, návrat na
+ * stránku přes odkaz) — bez nutnosti tady cache ručně invalidovat.
  */
 export async function updateFindingStatus(
   projectId: string,
@@ -95,7 +100,6 @@ export async function updateFindingStatus(
       reviewedById: session?.user?.id,
     },
   });
-  revalidatePath(wavePath(projectId, waveId));
 }
 
 // ---------- Nastavení vlny: základní údaje ----------

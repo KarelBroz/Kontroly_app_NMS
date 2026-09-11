@@ -44,9 +44,9 @@ export function FindingRow({
     try {
       await updateFindingStatus(projectId, waveId, findingId, (open ? "OPEN" : "RESOLVED") as FindingStatus);
     } catch (err) {
-      setIsOpen(previous); // uložení selhalo — vrátit vizuální stav zpět
+      setIsOpen(previous); // uložení selhalo (např. výpadek sítě) — vrátit vizuální stav zpět
       // eslint-disable-next-line no-console
-      console.error("updateFindingStatus selhalo:", err);
+      console.error("Uložení stavu nálezu selhalo:", err);
     } finally {
       setPending(false);
     }
