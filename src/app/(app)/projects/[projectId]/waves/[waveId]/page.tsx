@@ -11,6 +11,7 @@ import type { BadgeTone } from "@/components/ui/Badge";
 import { RULE_TYPE_LABELS, SYSTEM_CHECK_LABELS } from "@/lib/rules/labels";
 import { isVisitDataEmpty } from "@/lib/visits/emptyVisit";
 import { ConfirmSubmitButton } from "@/components/ui/ConfirmSubmitButton";
+import { LoadingSubmitButton } from "@/components/ui/LoadingSubmitButton";
 import { NavigatorLink } from "@/components/ui/NavigatorLink";
 import { buildNavigatorUrl } from "@/lib/navigator";
 import { fixMojibakeFileName } from "@/lib/fixMojibakeFileName";
@@ -202,10 +203,10 @@ export default async function WaveDetailPage({
                 <h2 className="text-base font-semibold text-slate-900">Import dat</h2>
               </div>
               <form action={rerunWave.bind(null, wave.projectId, wave.id)}>
-                <Button type="submit" variant="secondary" size="sm">
+                <LoadingSubmitButton variant="secondary" size="sm" pendingText="Kontroluji…">
                   <RefreshCw className="h-4 w-4" />
                   Spustit kontrolu znovu (celá vlna)
-                </Button>
+                </LoadingSubmitButton>
               </form>
             </div>
             <form
@@ -218,8 +219,12 @@ export default async function WaveDetailPage({
                   id="scenarioId"
                   name="scenarioId"
                   required
+                  defaultValue=""
                   className="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 text-sm text-slate-900 focus:border-brand-blue-400 focus:outline-none focus:ring-2 focus:ring-brand-blue-100"
                 >
+                  <option value="" disabled>
+                    -- Vyberte scénář --
+                  </option>
                   {wave.scenarios.map((scenario) => (
                     <option key={scenario.id} value={scenario.id}>
                       {scenario.scenarioTemplate.name}
@@ -238,7 +243,7 @@ export default async function WaveDetailPage({
                   className="block w-full text-sm text-slate-600 file:mr-4 file:rounded-xl file:border-0 file:bg-brand-blue-50 file:px-4 file:py-2.5 file:text-sm file:font-medium file:text-brand-blue-700 hover:file:bg-brand-blue-100"
                 />
               </div>
-              <Button type="submit">Nahrát a zkontrolovat</Button>
+              <LoadingSubmitButton pendingText="Chvilku strpění…">Nahrát a zkontrolovat</LoadingSubmitButton>
             </form>
 
             {wave.importBatches.length > 0 && (

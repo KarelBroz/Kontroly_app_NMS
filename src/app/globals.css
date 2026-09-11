@@ -30,3 +30,13 @@ body {
     transform: translateY(-7px) scale(0.6);
   }
 }
+
+/* Načítací pruh na tlačítku během odesílání (server action) — viz src/components/ui/LoadingSubmitButton.tsx */
+@keyframes loading-sweep {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
