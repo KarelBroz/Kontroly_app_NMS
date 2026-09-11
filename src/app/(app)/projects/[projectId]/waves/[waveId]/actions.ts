@@ -234,6 +234,8 @@ export async function updateScenarioSettings(
     }
   }
 
+  const skipIfNoRealDate = formData.has("skipIfNoRealDate");
+
   await prisma.scenario.update({
     where: { id: scenarioId },
     data: {
@@ -241,6 +243,7 @@ export async function updateScenarioSettings(
         windowStart: windowStart || undefined,
         windowEnd: windowEnd || undefined,
         weeklyWindows: weeklyWindows.length > 0 ? weeklyWindows : undefined,
+        skipIfNoRealDate: skipIfNoRealDate || undefined,
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } as any,
     },

@@ -55,6 +55,7 @@ interface ScenarioDataShape {
   windowStart?: string;
   windowEnd?: string;
   weeklyWindows?: WeeklyWindowShape[];
+  skipIfNoRealDate?: boolean;
 }
 
 export default async function WaveSettingsPage({
@@ -196,6 +197,21 @@ export default async function WaveSettingsPage({
                       Datum a čas návštěvy (sloupec "RealDate" v datech) se proti tomuhle oknu kontroluje
                       automaticky u každého importu.
                     </p>
+
+                    <label className="flex items-start gap-2 text-sm text-slate-700">
+                      <input
+                        type="checkbox"
+                        name="skipIfNoRealDate"
+                        defaultChecked={Boolean(data?.skipIfNoRealDate)}
+                        className="mt-0.5 rounded border-slate-300"
+                      />
+                      <span>
+                        Návštěva bez vyplněného "RealDate" = neúspěšná — vůbec ji nekontrolovat
+                        <span className="block text-xs text-slate-400">
+                          Nespustí se nad ní žádná pravidla ani systémové kontroly (žádné nálezy).
+                        </span>
+                      </span>
+                    </label>
 
                     <div className="border-t border-slate-100 pt-6">
                       <h4 className="mb-1 text-sm font-semibold text-slate-900">

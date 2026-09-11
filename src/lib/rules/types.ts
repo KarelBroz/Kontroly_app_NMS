@@ -19,6 +19,11 @@ export interface ScenarioData {
   windowStart?: string;
   windowEnd?: string;
   weeklyWindows?: WeeklyWindow[];
+  // Když je zapnuto: návštěva bez vyplněného sloupce "RealDate" se považuje
+  // za neúspěšnou (MS neproběhla) a VŮBEC se nekontroluje — žádná pravidla
+  // ani systémové kontroly, žádné nálezy. Zavedeno pro MS Lidl, kde chybějící
+  // RealDate jednoznačně znamená neúspěšnou návštěvu — viz computeFindingsForVisit.
+  skipIfNoRealDate?: boolean;
 }
 
 export interface RuleCheckInput {

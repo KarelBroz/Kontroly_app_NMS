@@ -49,6 +49,14 @@ export function computeFindingsForVisit(visit: VisitForRules): FindingDraft[] {
   const visitData = visit.data as Record<string, unknown>;
   const drafts: FindingDraft[] = [];
 
+  // Neúspěšná návštěva (chybí RealDate) — podle nastavení scénáře se vůbec
+  // nekontroluje, žádná pravidla ani systémové kontroly (viz ScenarioData.skipIfNoRealDate).
+  if (scenarioData?.skipIfNoRealDate) {
+    const realDateRaw = visitData["RealDate"];
+    const realDateMissing = realDateRaw === undefined || realDateRaw === null || String(realDateRaw).trim() === "";
+    if (realDateMissing) return drafts;
+  }
+
   // 1) ručně nastavená pravidla scénáře
   for (const rule of visit.scenario.rules) {
     const checker = CHECKERS[rule.type];
