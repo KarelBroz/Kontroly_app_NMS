@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition, type ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { CheckCircle2, XCircle } from "lucide-react";
 import type { FindingStatus } from "@prisma/client";
 import { cn } from "@/lib/utils";
@@ -34,16 +34,22 @@ export function FindingRow({
   children: ReactNode;
 }) {
   const [isOpen, setIsOpen] = useState(initialIsOpen);
-  const [pending, startTransition] = useTransition();
+  const [pending, setPending] = useState(false);
 
-  function setStatus(open: boolean) {
+  async function setStatus(open: boolean) {
+    if (pending) return; // dokud běží předchozí požadavek, druhý klik ignoruj
     const previous = isOpen;
     setIsOpen(open);
-    startTransition(() => {
-      updateFindingStatus(projectId, waveId, findingId, (open ? "OPEN" : "RESOLVED") as FindingStatus).catch(() => {
-        setIsOpen(previous); // uložení selhalo — vrátit vizuální stav zpět
-      });
-    });
+    setPending(true);
+    try {
+      await updateFindingStatus(projectId, waveId, findingId, (open ? "OPEN" : "RESOLVED") as FindingStatus);
+    } catch (err) {
+      setIsOpen(previous); // uložení selhalo — vrátit vizuální stav zpět
+      // eslint-disable-next-line no-console
+      console.error("updateFindingStatus selhalo:", err);
+    } finally {
+      setPending(false);
+    }
   }
 
   return (
