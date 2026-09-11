@@ -7,6 +7,7 @@ export const RULE_TYPE_LABELS: Record<RuleType, string> = {
   [RuleType.NUMERIC_RANGE]: "Číselný rozsah",
   [RuleType.CONDITIONAL_REQUIRED]: "Podmíněně povinné",
   [RuleType.PRODUCT_ALLOWLIST]: "Povolený seznam artiklů",
+  [RuleType.NUMERIC_THRESHOLD_CONSISTENCY]: "Prahová shoda čísla a odpovědi",
 };
 
 /** Popisky pro automatické systémové kontroly (běží vždy, bez ruční konfigurace). */

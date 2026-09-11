@@ -264,6 +264,13 @@ enum RuleType {
   // Povolený seznam artiklů — odpověď musí odpovídat jedné z položek
   // seznamu, tolerantně (velikost písmen, slovosled, drobné překlepy).
   PRODUCT_ALLOWLIST
+  // Prahová shoda — číselná otázka (config.questionCode) porovnaná s prahem
+  // (config.threshold) musí odpovídat hodnotě navazující ano/ne otázky
+  // (config.booleanQuestionCode): "nad prahem" -> config.valueAbove,
+  // "na prahu nebo pod ním" -> config.valueAtOrBelow. Např. "průměrná
+  // fronta 3,1+ zákazníků" (nad 3) musí mít u "byla fronta max. 3?"
+  // odpověď "Ne".
+  NUMERIC_THRESHOLD_CONSISTENCY
 }
 
 // Pravidlo kontroly navázané na konkrétní scénář (ne na celou vlnu) —

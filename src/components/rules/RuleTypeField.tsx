@@ -38,6 +38,13 @@ const TYPE_OPTIONS: Array<{ value: string; label: string; placeholder: string; h
     placeholder: "např. Donut s náplní, Croissant máslový",
     helper: "Vyjmenuj povolené artikly oddělené čárkou — kontrola je tolerantní na velikost písmen, slovosled i drobný překlep.",
   },
+  {
+    value: "NUMERIC_THRESHOLD_CONSISTENCY",
+    label: "Prahová shoda čísla a odpovědi",
+    placeholder: "např. 3 -> I07: Ano / Ne",
+    helper:
+      'Číslo z "Kódu otázky" porovnané s prahem musí odpovídat navazující otázce. Formát "práh -> KÓD_OTÁZKY: hodnota_do_prahu / hodnota_nad_prahem".',
+  },
 ];
 
 /** Kód otázky + Typ + Povolená hodnota pro založení pravidla — nápověda a placeholder se mění podle vybraného typu. */

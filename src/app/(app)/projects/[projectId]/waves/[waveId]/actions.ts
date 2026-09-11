@@ -333,6 +333,21 @@ function buildRuleConfig(
     config.detailQuestionCode = match[2].trim();
   }
 
+  if (type === RuleType.NUMERIC_THRESHOLD_CONSISTENCY) {
+    const match = valueRaw.match(/^(-?\d+(?:[.,]\d+)?)\s*->\s*([^:]+):\s*(.+?)\s*\/\s*(.+)$/);
+    if (!match) {
+      return {
+        config,
+        error:
+          'U typu "Prahová shoda čísla a odpovědi" zadej ve formátu práh -> KÓD_OTÁZKY: hodnota_do_prahu / hodnota_nad_prahem, např. "3 -> I07: Ano / Ne".',
+      };
+    }
+    config.threshold = Number(match[1].replace(",", "."));
+    config.booleanQuestionCode = match[2].trim();
+    config.valueAtOrBelow = match[3].trim();
+    config.valueAbove = match[4].trim();
+  }
+
   return { config, error: null };
 }
 
