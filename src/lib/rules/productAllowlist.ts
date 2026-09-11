@@ -89,9 +89,12 @@ function fuzzyMatches(candidate: string, allowed: string[]): boolean {
 /**
  * config = { questionCode: string, allowedProducts: string[] }
  * Odpověď musí odpovídat některé položce seznamu (case-insensitive,
- * bez ohledu na slovosled, s tolerancí na drobný překlep). Odpověď se
- * navíc rozdělí na jednotlivé položky podle čárky/středníku (pro případ,
- * že shopper napsal víc věcí najednou) — každá musí projít zvlášť.
+ * bez ohledu na slovosled, s tolerancí na drobný překlep). Pokud celá
+ * odpověď neodpovídá žádné položce najednou, rozdělí se podle čárky/
+ * středníku (pro případ, že shopper napsal víc věcí najednou) a každá
+ * část se zkusí zvlášť — ale NEJDŘÍV se zkouší celý text vcelku, protože
+ * některé názvy artiklů čárku přímo obsahují (např. "Kaiserka len,
+ * sezam") a rozdělení by je nesprávně rozbilo na dvě neplatné položky.
  */
 export const checkProductAllowlist: RuleChecker = ({ visitData, ruleConfig }) => {
   const questionCode = typeof ruleConfig.questionCode === "string" ? ruleConfig.questionCode.trim() : "";
@@ -102,13 +105,16 @@ export const checkProductAllowlist: RuleChecker = ({ visitData, ruleConfig }) =>
   if (value === undefined || value === null || String(value).trim() === "") return [];
 
   const raw = String(value).trim();
-  const parts = raw
-    .split(/[,;]/)
-    .map((p) => p.trim())
-    .filter(Boolean);
-  const itemsToCheck = parts.length > 0 ? parts : [raw];
 
-  const invalid = itemsToCheck.filter((item) => !fuzzyMatches(item, allowedProducts));
+  let invalid: string[] = [];
+  if (!fuzzyMatches(raw, allowedProducts)) {
+    const parts = raw
+      .split(/[,;]/)
+      .map((p) => p.trim())
+      .filter(Boolean);
+    const itemsToCheck = parts.length > 0 ? parts : [raw];
+    invalid = itemsToCheck.filter((item) => !fuzzyMatches(item, allowedProducts));
+  }
 
   const results: RuleCheckResult[] = [];
   if (invalid.length > 0) {

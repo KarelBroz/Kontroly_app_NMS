@@ -17,7 +17,7 @@ export class ExcelCsvImportSource implements ImportSource {
     // musí kódování nejdřív rozpoznat/přepočítat, jinak se diakritika rozsype.
     const isCsv = fileName.toLowerCase().endsWith(".csv");
     const workbook = isCsv
-      ? XLSX.read(decodeCsvBuffer(buffer), { type: "string", cellDates: true })
+      ? XLSX.read(fixDecimalCommas(decodeCsvBuffer(buffer)), { type: "string", cellDates: true })
       : XLSX.read(buffer, { type: "buffer", cellDates: true });
     const sheetName = workbook.SheetNames[0];
     if (!sheetName) return [];
@@ -55,6 +55,26 @@ function decodeCsvBuffer(buffer: Buffer): string {
 /** Node u neplatných UTF-8 sekvencí vloží U+FFFD — jejich přítomnost = vstup nebyl platné UTF-8. */
 function isValidUtf8(buffer: Buffer): boolean {
   return !buffer.toString("utf8").includes("�");
+}
+
+// Číslo se dvěma číslicemi kolem čárky (typicky desetinné číslo v české
+// notaci, např. "2,5"), ne delší číselný řetězec s víc čárkami (aby se
+// nešahalo na případné tisícové oddělovače) — vždy s nečíselným znakem
+// (nebo začátkem/koncem pole) na obou stranách.
+const DECIMAL_COMMA_RE = /(?<![\d,])(\d+),(\d+)(?![\d,])/g;
+
+/**
+ * CSV export z Excelu v české lokalizaci píše desetinná čísla s čárkou
+ * (např. "2,5"), ale knihovna xlsx při čtení CSV čárku uvnitř číselně
+ * vyhlížejícího řetězce interpretuje jako oddělovač tisíců (anglosaská
+ * konvence) — "2,5" by se tak nesprávně načetlo jako číslo 25. Opravíme to
+ * ještě před parsováním: čárku mezi dvěma číslicemi nahradíme tečkou.
+ * Cílí jen na "číslice,číslice" bez číslic/čárek kolem — textové odpovědi
+ * s čárkou (např. "Kaiserka len, sezam", výčet víc artiklů) mají kolem
+ * čárky mezeru nebo písmena, takže je tahle náhrada nezasáhne.
+ */
+function fixDecimalCommas(csvText: string): string {
+  return csvText.replace(DECIMAL_COMMA_RE, "$1.$2");
 }
 
 function findInspectionId(row: Record<string, unknown>): unknown {
