@@ -96,11 +96,21 @@ export async function importVisitsFromFile(params: {
     }
 
     if (existing.contentHash === contentHash && existing.scenarioId === scenarioId) {
-      // beze změny obsahu se přeskakuje, ale kontrolora (pokud u návštěvy
-      // ještě chybí — např. import proběhl ještě před zavedením Databáze
-      // kontrolorů) doplníme i tak, ať se doplní i zpětně
-      if (reviewerId && existing.reviewerId !== reviewerId) {
-        await prisma.visit.update({ where: { id: existing.id }, data: { reviewerId } });
+      // beze změny obsahu se přeskakuje, ale doplníme, co u návštěvy ještě
+      // chybí ze starších importů (před zavedením Databáze kontrolorů/
+      // statistiky úspěšnosti) — kontrolora, a "zmrazený" počet nálezů. Ten
+      // se u takové staré návštěvy počítá z AKTUÁLNÍCH nálezů — beze změny
+      // obsahu nikdo nic nesmazal ani nepřidal (ruční vyřešení mění jen
+      // stav, ne počet), takže je to spolehlivě stejné číslo jako při
+      // původním importu — pokud mezitím neproběhlo ruční "Spustit
+      // kontrolu znovu" nad jinak nastavenými pravidly.
+      const patch: { reviewerId?: string; initialFindingsCount?: number } = {};
+      if (reviewerId && existing.reviewerId !== reviewerId) patch.reviewerId = reviewerId;
+      if (existing.initialFindingsCount === null) {
+        patch.initialFindingsCount = await prisma.finding.count({ where: { visitId: existing.id } });
+      }
+      if (Object.keys(patch).length > 0) {
+        await prisma.visit.update({ where: { id: existing.id }, data: patch });
       }
       rowsSkipped++;
       continue;
