@@ -83,6 +83,12 @@ export async function importVisitsFromFile(params: {
     }
 
     if (existing.contentHash === contentHash && existing.scenarioId === scenarioId) {
+      // beze změny obsahu se přeskakuje, ale kontrolora (pokud u návštěvy
+      // ještě chybí — např. import proběhl ještě před zavedením Databáze
+      // kontrolorů) doplníme i tak, ať se doplní i zpětně
+      if (reviewerId && existing.reviewerId !== reviewerId) {
+        await prisma.visit.update({ where: { id: existing.id }, data: { reviewerId } });
+      }
       rowsSkipped++;
       continue;
     }
