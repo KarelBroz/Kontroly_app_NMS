@@ -5,7 +5,18 @@ import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Label } from "@/components/ui/Label";
 import { Button } from "@/components/ui/Button";
-import { CheckCircle2, XCircle, RefreshCw, Settings, AlertTriangle, Trash2, Upload, ClipboardCheck } from "lucide-react";
+import {
+  CheckCircle2,
+  XCircle,
+  RefreshCw,
+  Settings,
+  AlertTriangle,
+  Trash2,
+  Upload,
+  ClipboardCheck,
+  Filter,
+  Download,
+} from "lucide-react";
 import { FindingStatus, RuleType, SystemCheckType } from "@prisma/client";
 import type { BadgeTone } from "@/components/ui/Badge";
 import { RULE_TYPE_LABELS, SYSTEM_CHECK_LABELS } from "@/lib/rules/labels";
@@ -17,6 +28,15 @@ import { buildNavigatorUrl } from "@/lib/navigator";
 import { fixMojibakeFileName } from "@/lib/fixMojibakeFileName";
 import { cn } from "@/lib/utils";
 import { importWaveFile, rerunWave, updateFindingStatus, deleteImportBatch } from "./actions";
+import { buildVisitWhere } from "./visitFilters";
+
+const PAGE_SIZE = 50;
+const STATUS_OPTIONS = [
+  { value: "all", label: "Všechny" },
+  { value: "error", label: "S chybou" },
+  { value: "clean", label: "Bez chyby" },
+  { value: "empty", label: "Bez odpovědí" },
+];
 
 // Každá kategorie nálezu má vlastní barvu, ať se dá napříč přehledem rychle rozlišit.
 const RULE_TYPE_TONE: Record<RuleType, BadgeTone> = {
@@ -99,21 +119,21 @@ export default async function WaveDetailPage({
   searchParams,
 }: {
   params: { projectId: string; waveId: string };
-  searchParams: { error?: string; imported?: string };
+  searchParams: {
+    error?: string;
+    imported?: string;
+    scenario?: string;
+    status?: string;
+    reviewer?: string;
+    q?: string;
+    page?: string;
+  };
 }) {
   const wave = await prisma.wave.findUnique({
     where: { id: params.waveId },
     include: {
       project: true,
       scenarios: { include: { scenarioTemplate: true }, orderBy: { createdAt: "asc" } },
-      visits: {
-        orderBy: { updatedAt: "desc" },
-        include: {
-          scenario: { include: { scenarioTemplate: true } },
-          reviewer: true,
-          findings: { include: { rule: true, reviewedBy: true }, orderBy: { createdAt: "asc" } },
-        },
-      },
       importBatches: {
         orderBy: { createdAt: "desc" },
         take: 8,
@@ -124,16 +144,50 @@ export default async function WaveDetailPage({
 
   if (!wave || wave.projectId !== params.projectId) notFound();
 
-  const allFindings = wave.visits.flatMap((visit) => visit.findings);
+  // Celkové počty pro záhlaví stránky — VŽDY za celou vlnu, bez ohledu na filtry níže.
+  const [totalVisitCount, totalOpenFindingsCount, reviewerOptions] = await Promise.all([
+    prisma.visit.count({ where: { waveId: wave.id } }),
+    prisma.finding.count({ where: { status: FindingStatus.OPEN, visit: { waveId: wave.id } } }),
+    prisma.reviewer.findMany({
+      where: { visits: { some: { waveId: wave.id } } },
+      orderBy: [{ lastName: "asc" }, { firstName: "asc" }],
+      select: { id: true, firstName: true, lastName: true },
+    }),
+  ]);
+
+  const statusFilter = searchParams.status && searchParams.status !== "all" ? searchParams.status : "all";
+  const visitWhere = buildVisitWhere(wave.id, {
+    scenario: searchParams.scenario,
+    reviewer: searchParams.reviewer,
+    q: searchParams.q,
+  });
+
+  const filteredVisits = await prisma.visit.findMany({
+    where: visitWhere,
+    orderBy: { updatedAt: "desc" },
+    include: {
+      scenario: { include: { scenarioTemplate: true } },
+      reviewer: true,
+      findings: { include: { rule: true, reviewedBy: true }, orderBy: { createdAt: "asc" } },
+    },
+  });
+
   const importedParts = searchParams.imported?.split("-") ?? null;
+  const hasActiveFilters = Boolean(
+    (searchParams.scenario && searchParams.scenario !== "all") ||
+      (searchParams.reviewer && searchParams.reviewer !== "all") ||
+      (searchParams.status && searchParams.status !== "all") ||
+      searchParams.q?.trim()
+  );
 
-  // Návštěvy: chybové nahoře (od nejvíc problémových), čisté uprostřed,
-  // bez odpovědí (MS založené, terén zatím neproběhl) šedě úplně dole.
-  const emptyVisits: typeof wave.visits = [];
-  const errorVisits: typeof wave.visits = [];
-  const cleanVisits: typeof wave.visits = [];
+  // Návštěvy (po filtrech výše): chybové nahoře (od nejvíc problémových),
+  // čisté uprostřed, bez odpovědí (MS založené, terén zatím neproběhl) šedě
+  // úplně dole.
+  const emptyVisits: typeof filteredVisits = [];
+  const errorVisits: typeof filteredVisits = [];
+  const cleanVisits: typeof filteredVisits = [];
 
-  for (const visit of wave.visits) {
+  for (const visit of filteredVisits) {
     if (isVisitDataEmpty(visit.data as Record<string, unknown>)) {
       emptyVisits.push(visit);
     } else if (visit.findings.some((f) => f.status === FindingStatus.OPEN)) {
@@ -147,7 +201,33 @@ export default async function WaveDetailPage({
       b.findings.filter((f) => f.status === FindingStatus.OPEN).length -
       a.findings.filter((f) => f.status === FindingStatus.OPEN).length
   );
-  const orderedVisits = [...errorVisits, ...cleanVisits, ...emptyVisits];
+
+  const bucketed =
+    statusFilter === "error"
+      ? errorVisits
+      : statusFilter === "clean"
+        ? cleanVisits
+        : statusFilter === "empty"
+          ? emptyVisits
+          : [...errorVisits, ...cleanVisits, ...emptyVisits];
+
+  const currentPage = Math.max(1, parseInt(searchParams.page ?? "1", 10) || 1);
+  const totalPages = Math.max(1, Math.ceil(bucketed.length / PAGE_SIZE));
+  const safePage = Math.min(currentPage, totalPages);
+  const orderedVisits = bucketed.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+
+  // Query string pro odkazy stránkování/exportu — zachová aktuální filtry.
+  const filterQuery = new URLSearchParams();
+  if (searchParams.scenario && searchParams.scenario !== "all") filterQuery.set("scenario", searchParams.scenario);
+  if (searchParams.reviewer && searchParams.reviewer !== "all") filterQuery.set("reviewer", searchParams.reviewer);
+  if (searchParams.status && searchParams.status !== "all") filterQuery.set("status", searchParams.status);
+  if (searchParams.q?.trim()) filterQuery.set("q", searchParams.q.trim());
+  const filterQueryString = filterQuery.toString();
+  const pageHref = (p: number) => {
+    const qs = new URLSearchParams(filterQuery);
+    qs.set("page", String(p));
+    return `?${qs.toString()}`;
+  };
 
   return (
     <div className="space-y-10">
@@ -159,10 +239,8 @@ export default async function WaveDetailPage({
           <p className="mt-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Kontroly</p>
           <h1 className="text-2xl font-semibold text-slate-900">{wave.name}</h1>
           <div className="mt-3 flex flex-wrap gap-2">
-            <Badge tone="neutral">{wave.visits.length} návštěv</Badge>
-            <Badge tone="red">
-              {allFindings.filter((f) => f.status === FindingStatus.OPEN).length} otevřených nálezů
-            </Badge>
+            <Badge tone="neutral">{totalVisitCount} návštěv</Badge>
+            <Badge tone="red">{totalOpenFindingsCount} otevřených nálezů</Badge>
           </div>
         </div>
         <Link
@@ -293,9 +371,9 @@ export default async function WaveDetailPage({
                 </div>
                 <h2 className="text-base font-semibold text-slate-900">Nálezy</h2>
               </div>
-              {wave.visits.length > 0 && (
+              {filteredVisits.length > 0 && (
                 <div className="flex flex-wrap gap-2">
-                  <Badge tone="neutral">{wave.visits.length} MS celkem</Badge>
+                  <Badge tone="neutral">{filteredVisits.length} MS celkem</Badge>
                   <Badge tone="red">{errorVisits.length} MS s chybou</Badge>
                   <Badge tone="green">{cleanVisits.length} MS bez chyby</Badge>
                   {emptyVisits.length > 0 && (
@@ -304,6 +382,95 @@ export default async function WaveDetailPage({
                 </div>
               )}
             </div>
+
+            {/* Filtrování + export */}
+            <div className="border-b border-slate-100 bg-slate-50/60 px-6 py-4">
+              <form className="flex flex-wrap items-end gap-3" method="GET">
+                <div className="w-40">
+                  <Label htmlFor="scenario">Scénář</Label>
+                  <select
+                    id="scenario"
+                    name="scenario"
+                    defaultValue={searchParams.scenario ?? "all"}
+                    className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:border-brand-blue-400 focus:outline-none focus:ring-2 focus:ring-brand-blue-100"
+                  >
+                    <option value="all">Všechny</option>
+                    {wave.scenarios.map((s) => (
+                      <option key={s.id} value={s.id}>
+                        {s.scenarioTemplate.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="w-36">
+                  <Label htmlFor="status">Stav</Label>
+                  <select
+                    id="status"
+                    name="status"
+                    defaultValue={statusFilter}
+                    className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:border-brand-blue-400 focus:outline-none focus:ring-2 focus:ring-brand-blue-100"
+                  >
+                    {STATUS_OPTIONS.map((o) => (
+                      <option key={o.value} value={o.value}>
+                        {o.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="w-44">
+                  <Label htmlFor="reviewer">Kontrolor</Label>
+                  <select
+                    id="reviewer"
+                    name="reviewer"
+                    defaultValue={searchParams.reviewer ?? "all"}
+                    className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:border-brand-blue-400 focus:outline-none focus:ring-2 focus:ring-brand-blue-100"
+                  >
+                    <option value="all">Všichni</option>
+                    {reviewerOptions.map((r) => (
+                      <option key={r.id} value={r.id}>
+                        {r.firstName} {r.lastName}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="min-w-[160px] flex-1">
+                  <Label htmlFor="q">Hledat ID kontroly</Label>
+                  <input
+                    id="q"
+                    name="q"
+                    type="text"
+                    defaultValue={searchParams.q ?? ""}
+                    placeholder="např. 339285"
+                    className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:border-brand-blue-400 focus:outline-none focus:ring-2 focus:ring-brand-blue-100"
+                  />
+                </div>
+                <button
+                  type="submit"
+                  className="flex items-center gap-1.5 rounded-xl bg-brand-blue-600 px-3.5 py-2 text-sm font-medium text-white hover:bg-brand-blue-700"
+                >
+                  <Filter className="h-4 w-4" />
+                  Filtrovat
+                </button>
+                {hasActiveFilters && (
+                  <Link
+                    href={`/projects/${wave.projectId}/waves/${wave.id}`}
+                    className="text-sm font-medium text-slate-500 hover:underline"
+                  >
+                    Zrušit filtry
+                  </Link>
+                )}
+                <a
+                  href={`/projects/${wave.projectId}/waves/${wave.id}/export${
+                    filterQueryString ? `?${filterQueryString}` : ""
+                  }`}
+                  className="ml-auto flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-3.5 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
+                >
+                  <Download className="h-4 w-4" />
+                  Exportovat do Excelu
+                </a>
+              </form>
+            </div>
+
             {orderedVisits.length === 0 ? (
               <p className="px-6 py-6 text-sm text-slate-500">Zatím žádné návštěvy.</p>
             ) : (
@@ -469,6 +636,31 @@ export default async function WaveDetailPage({
                     </div>
                   );
                 })}
+              </div>
+            )}
+            {totalPages > 1 && (
+              <div className="flex items-center justify-between gap-3 border-t border-slate-100 px-6 py-4 text-sm">
+                <span className="text-slate-500">
+                  Stránka {safePage} z {totalPages} ({bucketed.length} MS)
+                </span>
+                <div className="flex gap-2">
+                  {safePage > 1 && (
+                    <Link
+                      href={pageHref(safePage - 1)}
+                      className="rounded-lg border border-slate-200 px-3 py-1.5 font-medium text-slate-600 hover:bg-slate-50"
+                    >
+                      ← Předchozí
+                    </Link>
+                  )}
+                  {safePage < totalPages && (
+                    <Link
+                      href={pageHref(safePage + 1)}
+                      className="rounded-lg border border-slate-200 px-3 py-1.5 font-medium text-slate-600 hover:bg-slate-50"
+                    >
+                      Další →
+                    </Link>
+                  )}
+                </div>
               </div>
             )}
           </Card>
