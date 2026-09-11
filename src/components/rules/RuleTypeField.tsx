@@ -28,9 +28,9 @@ const TYPE_OPTIONS: Array<{ value: string; label: string; placeholder: string; h
   {
     value: "CONDITIONAL_REQUIRED",
     label: "Podmíněně povinné",
-    placeholder: "např. Ano -> SCO1j",
+    placeholder: "např. Ano -> SCO1t",
     helper:
-      'Pokud odpověď NENÍ rovna zadané hodnotě, musí být vyplněná doplňující otázka. Formát "hodnota -> KÓD_DOPLŇUJÍCÍ_OTÁZKY".',
+      'Formát "hodnota -> KÓD" — doplňující otázka je povinná, když se odpověď NEROVNÁ zadané hodnotě. "=hodnota -> KÓD" — povinná, když se odpověď PŘESNĚ ROVNÁ (např. "=Jiné_ -> SCO1j"). "~hodnota -> KÓD" — povinná, když odpověď hodnotu OBSAHUJE (pro vícevýběrové otázky).',
   },
   {
     value: "PRODUCT_ALLOWLIST",

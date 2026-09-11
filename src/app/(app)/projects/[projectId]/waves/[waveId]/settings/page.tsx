@@ -318,10 +318,17 @@ export default async function WaveSettingsPage({
                     <p className="mb-3 text-xs text-slate-500">
                       Jeden řádek = jedno pravidlo, formát{" "}
                       <code className="rounded bg-slate-100 px-1 py-0.5">TYP|KÓD_OTÁZKY|hodnota</code>. Typ je
-                      jedno z REQUIRED / ALLOWED_VALUES / NUMERIC_RANGE / CONDITIONAL_REQUIRED / PRODUCT_ALLOWLIST.
-                      Hodnota podle typu: u ALLOWED_VALUES a PRODUCT_ALLOWLIST seznam oddělený čárkou, u
-                      NUMERIC_RANGE "min-max" (např. 0-10), u CONDITIONAL_REQUIRED "hodnota -&gt; KÓD_DOPLŇUJÍCÍ_OTÁZKY"
-                      (např. "Ano -&gt; SCO1j"), u REQUIRED se hodnota vynechává.
+                      jedno z REQUIRED / ALLOWED_VALUES / NUMERIC_RANGE / CONDITIONAL_REQUIRED / PRODUCT_ALLOWLIST /
+                      NUMERIC_THRESHOLD_CONSISTENCY. Hodnota podle typu: u ALLOWED_VALUES a PRODUCT_ALLOWLIST seznam
+                      oddělený čárkou, u NUMERIC_RANGE "min-max" (např. 0-10), u CONDITIONAL_REQUIRED "hodnota
+                      -&gt; KÓD" (povinné, když se NEROVNÁ, např. "Ano -&gt; SCO1t"), "=hodnota -&gt; KÓD" (povinné,
+                      když se PŘESNĚ ROVNÁ, např. "=Jiné_ -&gt; SCO1j") nebo "~hodnota -&gt; KÓD" (povinné, když
+                      odpověď hodnotu OBSAHUJE, pro vícevýběrové otázky), u NUMERIC_THRESHOLD_CONSISTENCY "práh -&gt;
+                      KÓD: hodnota_do_prahu / hodnota_nad_prahem" (např. "3 -&gt; I07: Ano / Ne"), u REQUIRED se
+                      hodnota vynechává. Řádek{" "}
+                      <code className="rounded bg-slate-100 px-1 py-0.5">DELETE|TYP|KÓD_OTÁZKY</code> smaže
+                      existující pravidlo tohoto typu a kódu — hodí se pro opravu (smazat staré, hned pod tím
+                      přidat nové).
                     </p>
                     <form
                       action={bulkCreateRules.bind(null, wave.projectId, wave.id, scenario.id)}
@@ -330,7 +337,7 @@ export default async function WaveSettingsPage({
                       <textarea
                         name="bulkRules"
                         rows={4}
-                        placeholder={"REQUIRED|X02\nALLOWED_VALUES|I01|Ano,Ne,Nehodnoceno\nCONDITIONAL_REQUIRED|SCO1|Ano -> SCO1j"}
+                        placeholder={"REQUIRED|X02\nALLOWED_VALUES|I01|Ano,Ne,Nehodnoceno\nCONDITIONAL_REQUIRED|SCO1|Ano -> SCO1t\nCONDITIONAL_REQUIRED|SCO1t|=Jiné_ -> SCO1j"}
                         className="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 font-mono text-xs text-slate-900 focus:border-brand-blue-400 focus:outline-none focus:ring-2 focus:ring-brand-blue-100"
                       />
                       <Button type="submit" variant="secondary" size="sm">

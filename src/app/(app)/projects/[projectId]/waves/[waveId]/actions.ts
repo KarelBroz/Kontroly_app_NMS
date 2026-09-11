@@ -287,7 +287,8 @@ export async function removeScenario(projectId: string, waveId: string, scenario
  * formát pole se liší podle typu (viz dynamická nápověda v RuleTypeField):
  * - ALLOWED_VALUES / PRODUCT_ALLOWLIST: "hodnota1, hodnota2, ..."
  * - NUMERIC_RANGE: "min-max", např. "0-180"
- * - CONDITIONAL_REQUIRED: "hodnota -> KÓD_DOPLŇUJÍCÍ_OTÁZKY", např. "Ano -> SCO1j"
+ * - CONDITIONAL_REQUIRED: "hodnota -> KÓD_DOPLŇUJÍCÍ_OTÁZKY" (≠), "=hodnota -> KÓD" (=),
+ *   nebo "~hodnota -> KÓD" (obsahuje) — např. "Ano -> SCO1t", "=Jiné_ -> SCO1j"
  * Sdílené mezi createRule (jedno pravidlo přes formulář) a bulkCreateRules
  * (víc pravidel najednou přes vložený seznam řádků).
  */
@@ -322,11 +323,29 @@ function buildRuleConfig(
   }
 
   if (type === RuleType.CONDITIONAL_REQUIRED) {
+    // "=hodnota -> KÓD" — vyžaduje KÓD, když se odpověď PŘESNĚ ROVNÁ hodnotě
+    // (dvouúrovňové otázky typu "upřesněte" -> "jiné, vypište", např. "=Jiné_ -> SCO1j").
+    const equalsMatch = valueRaw.match(/^=\s*(.+?)\s*->\s*(.+)$/);
+    if (equalsMatch) {
+      config.equalsValue = equalsMatch[1].trim();
+      config.detailQuestionCode = equalsMatch[2].trim();
+      return { config, error: null };
+    }
+    // "~hodnota -> KÓD" — vyžaduje KÓD, když odpověď hodnotu OBSAHUJE (pro
+    // vícevýběrové otázky, kde odpověď je seznam kódů, např. "~o8 -> SCO4j").
+    const containsMatch = valueRaw.match(/^~\s*(.+?)\s*->\s*(.+)$/);
+    if (containsMatch) {
+      config.containsValue = containsMatch[1].trim();
+      config.detailQuestionCode = containsMatch[2].trim();
+      return { config, error: null };
+    }
+    // "hodnota -> KÓD" — vyžaduje KÓD, když se odpověď NEROVNÁ hodnotě (typicky "Ano").
     const match = valueRaw.match(/^(.+?)\s*->\s*(.+)$/);
     if (!match) {
       return {
         config,
-        error: 'U typu "Podmíněně povinné" zadej ve formátu hodnota -> KÓD_OTÁZKY, např. "Ano -> SCO1j".',
+        error:
+          'U typu "Podmíněně povinné" zadej ve formátu hodnota -> KÓD_OTÁZKY (vyžaduje se, když se NEROVNÁ, např. "Ano -> SCO1t"), "=hodnota -> KÓD_OTÁZKY" (vyžaduje se, když se PŘESNĚ ROVNÁ, např. "=Jiné_ -> SCO1j"), nebo "~hodnota -> KÓD_OTÁZKY" (vyžaduje se, když odpověď hodnotu OBSAHUJE, např. "~o8 -> SCO4j").',
       };
     }
     config.notEqualsValue = match[1].trim();
@@ -390,11 +409,16 @@ export async function createRule(projectId: string, waveId: string, scenarioId: 
 }
 
 /**
- * Hromadné přidání víc pravidel najednou — jeden řádek = jedno pravidlo,
- * formát "TYP|KÓD_OTÁZKY|hodnota" (hodnota podle typu, viz buildRuleConfig).
- * Typ je název RuleType (REQUIRED/ALLOWED_VALUES/NUMERIC_RANGE/
- * CONDITIONAL_REQUIRED/PRODUCT_ALLOWLIST). Pro REQUIRED se třetí část
- * ignoruje/vynechává.
+ * Hromadné přidání i mazání víc pravidel najednou — jeden řádek = jedna akce.
+ * Přidání: formát "TYP|KÓD_OTÁZKY|hodnota" (hodnota podle typu, viz
+ * buildRuleConfig). Typ je název RuleType (REQUIRED/ALLOWED_VALUES/
+ * NUMERIC_RANGE/CONDITIONAL_REQUIRED/PRODUCT_ALLOWLIST/
+ * NUMERIC_THRESHOLD_CONSISTENCY). Pro REQUIRED se třetí část ignoruje/vynechává.
+ * Smazání: formát "DELETE|TYP|KÓD_OTÁZKY" — smaže všechna pravidla tohoto
+ * scénáře daného typu s tímhle kódem otázky (typicky když se pravidlo
+ * nahrazuje opraveným — nejdřív smazat staré, pak v dalším řádku přidat nové).
+ * Mazání se provede před přidáváním, takže v jednom vložení jde pravidlo
+ * rovnou nahradit.
  */
 export async function bulkCreateRules(projectId: string, waveId: string, scenarioId: string, formData: FormData) {
   const raw = String(formData.get("bulkRules") || "").trim();
@@ -409,10 +433,26 @@ export async function bulkCreateRules(projectId: string, waveId: string, scenari
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const toCreate: { scenarioId: string; type: RuleType; name: string; config: any }[] = [];
+  const toDelete: { type: RuleType; questionCode: string }[] = [];
   const errors: string[] = [];
 
   lines.forEach((line, i) => {
     const parts = line.split("|").map((p) => p.trim());
+
+    if (parts[0]?.toUpperCase() === "DELETE") {
+      const [, typeRaw, questionCode] = parts;
+      if (!typeRaw || !questionCode) {
+        errors.push(`Řádek ${i + 1}: DELETE potřebuje typ i kód otázky (DELETE|TYP|KÓD).`);
+        return;
+      }
+      if (!Object.values(RuleType).includes(typeRaw as RuleType)) {
+        errors.push(`Řádek ${i + 1}: neplatný typ "${typeRaw}".`);
+        return;
+      }
+      toDelete.push({ type: typeRaw as RuleType, questionCode });
+      return;
+    }
+
     const [typeRaw, questionCode, valueRaw = ""] = parts;
     if (!typeRaw || !questionCode) {
       errors.push(`Řádek ${i + 1}: chybí typ nebo kód otázky.`);
@@ -435,12 +475,34 @@ export async function bulkCreateRules(projectId: string, waveId: string, scenari
     redirect(`${settingsPath(projectId, waveId)}?error=${encodeURIComponent(errors.join(" | "))}`);
   }
 
-  await prisma.rule.createMany({ data: toCreate });
+  let deletedCount = 0;
+  if (toDelete.length > 0) {
+    const existingRules = await prisma.rule.findMany({
+      where: { scenarioId },
+      select: { id: true, type: true, config: true },
+    });
+    const idsToDelete = existingRules
+      .filter((r) =>
+        toDelete.some((m) => m.type === r.type && (r.config as Record<string, unknown>)?.questionCode === m.questionCode)
+      )
+      .map((r) => r.id);
+    if (idsToDelete.length > 0) {
+      const result = await prisma.rule.deleteMany({ where: { id: { in: idsToDelete } } });
+      deletedCount = result.count;
+    }
+  }
+
+  if (toCreate.length > 0) {
+    await prisma.rule.createMany({ data: toCreate });
+  }
   await rerunRulesForScenario(scenarioId);
 
   revalidatePath(settingsPath(projectId, waveId));
   revalidatePath(wavePath(projectId, waveId));
-  redirect(`${settingsPath(projectId, waveId)}?saved=${encodeURIComponent(`${toCreate.length} pravidel přidáno`)}`);
+  const summaryParts: string[] = [];
+  if (toCreate.length > 0) summaryParts.push(`${toCreate.length} pravidel přidáno`);
+  if (deletedCount > 0) summaryParts.push(`${deletedCount} smazáno`);
+  redirect(`${settingsPath(projectId, waveId)}?saved=${encodeURIComponent(summaryParts.join(", ") || "Hotovo")}`);
 }
 
 // Explicitní `_formData` parametr (i když se nečte) — použité přes `formAction`

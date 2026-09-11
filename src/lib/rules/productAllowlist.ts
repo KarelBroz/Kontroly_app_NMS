@@ -9,14 +9,17 @@ function foldDiacritics(s: string): string {
   return s.normalize("NFD").replace(COMBINING_MARKS_RE, "");
 }
 
-/** Normalizace pro porovnání: bez diakritiky/velikosti písmen/interpunkce, slova seřazená — slovosled nehraje roli. */
-function normalizeProductName(s: string): string {
+/** Rozdělí na jednotlivá slova: bez diakritiky/velikosti písmen/interpunkce. */
+function tokenize(s: string): string[] {
   return foldDiacritics(s.toLowerCase())
     .replace(/[^a-z0-9\s]/g, " ")
     .split(/\s+/)
-    .filter(Boolean)
-    .sort()
-    .join(" ");
+    .filter(Boolean);
+}
+
+/** Normalizace pro porovnání celého textu najednou: slova seřazená — slovosled nehraje roli. */
+function normalizeProductName(s: string): string {
+  return tokenize(s).sort().join(" ");
 }
 
 /** Klasická editační (Levenshteinova) vzdálenost — tolerance na drobné překlepy. */
@@ -33,17 +36,52 @@ function levenshtein(a: string, b: string): number {
   return dp[a.length][b.length];
 }
 
-/** True, pokud candidate odpovídá NĚKTERÉMU z povolených artiklů — tolerantně (slovosled, velikost písmen, drobný překlep). */
+/** True, pokud si dvě jednotlivá slova tolerantně odpovídají (drobný překlep, jednotné/množné číslo apod.). */
+function tokensFuzzyEqual(a: string, b: string): boolean {
+  if (a === b) return true;
+  const threshold = a.length <= 4 || b.length <= 4 ? 1 : 2;
+  return levenshtein(a, b) <= threshold;
+}
+
+/** True, pokud každé slovo z `subset` má tolerantní protějšek někde v `superset` (slovosled nehraje roli). */
+function tokensAreSubsetOf(subset: string[], superset: string[]): boolean {
+  if (subset.length === 0) return false;
+  return subset.every((token) => superset.some((candidate) => tokensFuzzyEqual(token, candidate)));
+}
+
+/**
+ * True, pokud candidate odpovídá NĚKTERÉMU z povolených artiklů — tolerantně:
+ * slovosled nehraje roli, malá/velká písmena ani diakritika nevadí, drobný
+ * překlep je v pořádku. Navíc se toleruje i to, že candidate popisuje artikl
+ * MÉNĚ přesně než seznam (chybí popisné slovo jako barva/velikost — např.
+ * "Jablko Golden Delicious" odpovídá položce "Jablka zelená Golden
+ * Delicious"), nebo naopak PŘESNĚJI (obsahuje slovo navíc, např. balení).
+ */
 function fuzzyMatches(candidate: string, allowed: string[]): boolean {
+  const candTokens = tokenize(candidate);
+  if (candTokens.length === 0) return false;
   const normCandidate = normalizeProductName(candidate);
-  if (!normCandidate) return false;
+
   for (const item of allowed) {
+    const itemTokens = tokenize(item);
+    if (itemTokens.length === 0) continue;
+
+    // 1) Celý text je (skoro) shodný — pokrývá drobné překlepy napříč celým názvem.
     const normItem = normalizeProductName(item);
-    if (!normItem) continue;
     if (normCandidate === normItem) return true;
     const maxLen = Math.max(normCandidate.length, normItem.length);
     const threshold = Math.max(2, Math.round(maxLen * 0.15));
     if (levenshtein(normCandidate, normItem) <= threshold) return true;
+
+    // 2) Odpověď je podmnožinou slov povoleného artiklu — chybí jen popisné
+    // slovo (barva, "volná", velikost balení...), jádro názvu ale sedí.
+    // Vyžadujeme aspoň 2 slova, ať jedno obecné slovo (např. samotné
+    // "Jablka") neprojde jako shoda se vším.
+    if (candTokens.length >= 2 && tokensAreSubsetOf(candTokens, itemTokens)) return true;
+
+    // 3) Odpověď obsahuje navíc nějaké slovo (např. hmotnost balení) oproti
+    // povolenému artiklu — název artiklu je celý obsažený v odpovědi.
+    if (tokensAreSubsetOf(itemTokens, candTokens)) return true;
   }
   return false;
 }
