@@ -40,6 +40,7 @@ export async function GET(request: NextRequest, context: { params: { projectId: 
     scenario: url.searchParams.get("scenario") || undefined,
     reviewer: url.searchParams.get("reviewer") || undefined,
     q: url.searchParams.get("q") || undefined,
+    findingType: url.searchParams.get("findingType") || undefined,
   });
 
   const visits = await prisma.visit.findMany({

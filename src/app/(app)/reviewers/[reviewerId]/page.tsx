@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/Badge";
 import type { BadgeTone } from "@/components/ui/Badge";
 import { UserCheck, ClipboardList, AlertCircle, Trophy } from "lucide-react";
 import { getReviewerPerformance } from "@/lib/stats/reviewerStats";
+import { getLastActiveWaveIdsByProject, projectQuickLink } from "@/lib/waves/lastActiveWave";
 
 function successTone(rate: number): BadgeTone {
   if (rate >= 80) return "green";
@@ -26,6 +27,7 @@ export default async function ReviewerDetailPage({ params }: { params: { reviewe
   if (!reviewer) notFound();
 
   const { overall, byProject } = await getReviewerPerformance(reviewer.id);
+  const lastActiveWaveIds = await getLastActiveWaveIdsByProject(byProject.map((p) => p.projectId));
 
   return (
     <div className="space-y-8">
@@ -88,7 +90,7 @@ export default async function ReviewerDetailPage({ params }: { params: { reviewe
             {byProject.map((p) => (
               <Link
                 key={p.projectId}
-                href={`/projects/${p.projectId}`}
+                href={projectQuickLink(p.projectId, lastActiveWaveIds)}
                 className="flex flex-wrap items-center justify-between gap-3 px-6 py-4 hover:bg-slate-50"
               >
                 <span className="font-medium text-slate-900 hover:underline">{p.projectName}</span>

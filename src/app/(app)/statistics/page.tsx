@@ -13,6 +13,7 @@ import {
 import { ReviewerPodium } from "@/components/stats/ReviewerPodium";
 import { RankedBarList } from "@/components/stats/RankedBarList";
 import { cn } from "@/lib/utils";
+import { getLastActiveWaveIdsByProject, projectQuickLink } from "@/lib/waves/lastActiveWave";
 
 function periodHref(mode: "month" | "year", year: number, month?: number) {
   const params = new URLSearchParams({ mode, year: String(year) });
@@ -37,10 +38,11 @@ export default async function StatisticsPage({
   const next = mode === "year" ? { year: year + 1, month } : shiftMonth(year, month, 1);
   const nextDisabled = mode === "year" ? next.year > curYear : isFutureMonth(next.year, next.month);
 
-  const [activity, reviewers, openFindings] = await Promise.all([
+  const [activity, reviewers, openFindings, lastActiveWaveIds] = await Promise.all([
     getMonthlyActivity(range),
     getTopReviewers(range),
     getOpenFindingsByProject(),
+    getLastActiveWaveIdsByProject(),
   ]);
 
   const top3Reviewers = reviewers.slice(0, 3);
@@ -49,13 +51,13 @@ export default async function StatisticsPage({
     key: p.projectId,
     label: p.projectName,
     count: p.count,
-    href: `/projects/${p.projectId}`,
+    href: projectQuickLink(p.projectId, lastActiveWaveIds),
   }));
   const openFindingItems = openFindings.ranked.map((p) => ({
     key: p.projectId,
     label: p.projectName,
     count: p.count,
-    href: `/projects/${p.projectId}`,
+    href: projectQuickLink(p.projectId, lastActiveWaveIds),
   }));
 
   return (

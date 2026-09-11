@@ -17,6 +17,7 @@ import {
   getWavesNeedingAttention,
 } from "@/lib/stats/getStats";
 import { currentYearMonth, monthLabel, monthRange } from "@/lib/stats/dateRange";
+import { getLastActiveWaveIdsByProject, projectQuickLink } from "@/lib/waves/lastActiveWave";
 
 export default async function HomePage() {
   const session = await getServerSession(authOptions);
@@ -27,7 +28,7 @@ export default async function HomePage() {
   const range = monthRange(year, month);
   const periodLabel = `${monthLabel(month)} ${year}`;
 
-  const [projects, recentBatches, monthlyActivity, openFindings, topReviewers, wavesNeedingAttention] =
+  const [projects, recentBatches, monthlyActivity, openFindings, topReviewers, wavesNeedingAttention, lastActiveWaveIds] =
     await Promise.all([
       prisma.project.findMany({
         orderBy: { updatedAt: "desc" },
@@ -43,6 +44,7 @@ export default async function HomePage() {
       getOpenFindingsByProject(),
       getTopReviewers(range),
       getWavesNeedingAttention(),
+      getLastActiveWaveIdsByProject(),
     ]);
 
   return (
@@ -119,7 +121,7 @@ export default async function HomePage() {
         ) : (
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {projects.map((project) => (
-              <Link key={project.id} href={`/projects/${project.id}`}>
+              <Link key={project.id} href={projectQuickLink(project.id, lastActiveWaveIds)}>
                 <Card className="h-full cursor-pointer">
                   {project.logoUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element

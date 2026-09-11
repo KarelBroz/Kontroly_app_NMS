@@ -7,7 +7,6 @@ import { Label } from "@/components/ui/Label";
 import { Button } from "@/components/ui/Button";
 import {
   CheckCircle2,
-  XCircle,
   RefreshCw,
   Settings,
   AlertTriangle,
@@ -23,12 +22,11 @@ import { RULE_TYPE_LABELS, SYSTEM_CHECK_LABELS } from "@/lib/rules/labels";
 import { isVisitDataEmpty } from "@/lib/visits/emptyVisit";
 import { ConfirmSubmitButton } from "@/components/ui/ConfirmSubmitButton";
 import { LoadingSubmitButton } from "@/components/ui/LoadingSubmitButton";
-import { NavigatorLink } from "@/components/ui/NavigatorLink";
 import { buildNavigatorUrl } from "@/lib/navigator";
 import { fixMojibakeFileName } from "@/lib/fixMojibakeFileName";
-import { cn } from "@/lib/utils";
-import { importWaveFile, rerunWave, updateFindingStatus, deleteImportBatch } from "./actions";
+import { importWaveFile, rerunWave, deleteImportBatch } from "./actions";
 import { buildVisitWhere } from "./visitFilters";
+import { FindingRow } from "./FindingRow";
 
 const DEFAULT_PAGE_SIZE = 50;
 const PAGE_SIZE_OPTIONS = [
@@ -49,7 +47,17 @@ const SORT_OPTIONS = [
   { value: "priority", label: "Chybové nahoře (výchozí)" },
   { value: "newest", label: "Nejnovější první" },
   { value: "oldest", label: "Nejstarší první" },
-  { value: "id", label: "ID kontroly A-Z" },
+  { value: "id", label: "ID kontroly (vzestupně)" },
+];
+// Typ chyby k filtrování — RuleType hodnoty přímo, systémové kontroly s
+// předponou "SYS_" (viz buildVisitWhere ve visitFilters.ts).
+const FINDING_TYPE_OPTIONS = [
+  { value: "all", label: "Všechny" },
+  ...Object.values(RuleType).map((t) => ({ value: t as string, label: RULE_TYPE_LABELS[t] })),
+  ...Object.values(SystemCheckType).map((t) => ({
+    value: `SYS_${t}`,
+    label: SYSTEM_CHECK_LABELS[t] ?? t,
+  })),
 ];
 
 // Každá kategorie nálezu má vlastní barvu, ať se dá napříč přehledem rychle rozlišit.
@@ -143,6 +151,7 @@ export default async function WaveDetailPage({
     sort?: string;
     page?: string;
     pageSize?: string;
+    findingType?: string;
   };
 }) {
   const wave = await prisma.wave.findUnique({
@@ -175,6 +184,7 @@ export default async function WaveDetailPage({
     scenario: searchParams.scenario,
     reviewer: searchParams.reviewer,
     q: searchParams.q,
+    findingType: searchParams.findingType,
   });
 
   const filteredVisits = await prisma.visit.findMany({
@@ -192,6 +202,7 @@ export default async function WaveDetailPage({
     (searchParams.scenario && searchParams.scenario !== "all") ||
       (searchParams.reviewer && searchParams.reviewer !== "all") ||
       (searchParams.status && searchParams.status !== "all") ||
+      (searchParams.findingType && searchParams.findingType !== "all") ||
       (searchParams.q && searchParams.q.trim())
   );
 
@@ -236,7 +247,14 @@ export default async function WaveDetailPage({
     bucketed = [...statusFiltered].sort((a, b) => {
       if (sortMode === "newest") return b.updatedAt.getTime() - a.updatedAt.getTime();
       if (sortMode === "oldest") return a.updatedAt.getTime() - b.updatedAt.getTime();
-      if (sortMode === "id") return a.inspectionId.localeCompare(b.inspectionId, "cs");
+      if (sortMode === "id") {
+        // ID kontroly bývá číselné (např. "339285") — řadit podle hodnoty, ne
+        // jako text (jinak by "100" bylo před "99").
+        const na = Number(a.inspectionId);
+        const nb = Number(b.inspectionId);
+        if (!Number.isNaN(na) && !Number.isNaN(nb)) return na - nb;
+        return a.inspectionId.localeCompare(b.inspectionId, "cs");
+      }
       return 0;
     });
   }
@@ -254,6 +272,8 @@ export default async function WaveDetailPage({
   if (searchParams.scenario && searchParams.scenario !== "all") filterQuery.set("scenario", searchParams.scenario);
   if (searchParams.reviewer && searchParams.reviewer !== "all") filterQuery.set("reviewer", searchParams.reviewer);
   if (searchParams.status && searchParams.status !== "all") filterQuery.set("status", searchParams.status);
+  if (searchParams.findingType && searchParams.findingType !== "all")
+    filterQuery.set("findingType", searchParams.findingType);
   if (searchParams.q && searchParams.q.trim()) filterQuery.set("q", searchParams.q.trim());
   if (searchParams.sort && searchParams.sort !== "priority") filterQuery.set("sort", searchParams.sort);
   if (pageSizeParam !== String(DEFAULT_PAGE_SIZE)) filterQuery.set("pageSize", pageSizeParam);
@@ -498,6 +518,21 @@ export default async function WaveDetailPage({
                     ))}
                   </select>
                 </div>
+                <div className="w-48">
+                  <Label htmlFor="findingType">Typ chyby</Label>
+                  <select
+                    id="findingType"
+                    name="findingType"
+                    defaultValue={searchParams.findingType ?? "all"}
+                    className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:border-brand-blue-400 focus:outline-none focus:ring-2 focus:ring-brand-blue-100"
+                  >
+                    {FINDING_TYPE_OPTIONS.map((o) => (
+                      <option key={o.value} value={o.value}>
+                        {o.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
                 <div className="min-w-[160px] flex-1">
                   <Label htmlFor="q">Hledat ID kontroly</Label>
                   <input
@@ -606,95 +641,38 @@ export default async function WaveDetailPage({
                               : null;
 
                             return (
-                              <div
+                              <FindingRow
                                 key={finding.id}
-                                className={cn(
-                                  "flex items-center justify-between gap-3 rounded-xl px-3 py-2",
-                                  isOpen ? "bg-red-50" : "bg-brand-green-50"
-                                )}
+                                findingId={finding.id}
+                                projectId={wave.projectId}
+                                waveId={wave.id}
+                                initialIsOpen={isOpen}
+                                navigatorHref={navigatorHref}
+                                reviewerInitials={reviewerInitials(finding.reviewedBy)}
+                                reviewedByLabel={finding.reviewedBy?.name ?? finding.reviewedBy?.email ?? ""}
                               >
-                                <div className="min-w-0 flex-1">
-                                  {grammarDetails?.context ? (
-                                    <p className="text-sm text-slate-700">
-                                      {grammarDetails.field && (
-                                        <span className="font-medium">{grammarDetails.field}: </span>
-                                      )}
-                                      <GrammarContext
-                                        context={grammarDetails.context}
-                                        errorWord={grammarDetails.errorWord ?? ""}
-                                      />
-                                      {grammarDetails.reason && (
-                                        <span className="ml-1 text-xs text-slate-400">
-                                          ({grammarDetails.reason})
-                                        </span>
-                                      )}
-                                    </p>
-                                  ) : (
-                                    <p className="text-sm text-slate-700">{finding.message}</p>
-                                  )}
-                                  <div className="mt-1.5">
-                                    <Badge tone={findingTypeTone(finding)} className="font-semibold">
-                                      {findingTypeLabel(finding)}
-                                    </Badge>
-                                  </div>
-                                </div>
-                                <div className="flex shrink-0 items-center gap-1.5">
-                                  <NavigatorLink
-                                    href={navigatorHref}
-                                    storageKey={`navigator-visited:${finding.id}`}
-                                  />
-                                  <form
-                                    action={updateFindingStatus.bind(
-                                      null,
-                                      wave.projectId,
-                                      wave.id,
-                                      finding.id,
-                                      FindingStatus.OPEN
+                                {grammarDetails?.context ? (
+                                  <p className="text-sm text-slate-700">
+                                    {grammarDetails.field && (
+                                      <span className="font-medium">{grammarDetails.field}: </span>
                                     )}
-                                  >
-                                    <button
-                                      type="submit"
-                                      disabled={isOpen}
-                                      title="Chyba (neopraveno)"
-                                      className="rounded-full p-1 disabled:cursor-default"
-                                    >
-                                      <XCircle className={cn("h-5 w-5", isOpen ? "text-red-500" : "text-slate-300")} />
-                                    </button>
-                                  </form>
-                                  <form
-                                    action={updateFindingStatus.bind(
-                                      null,
-                                      wave.projectId,
-                                      wave.id,
-                                      finding.id,
-                                      FindingStatus.RESOLVED
+                                    <GrammarContext
+                                      context={grammarDetails.context}
+                                      errorWord={grammarDetails.errorWord ?? ""}
+                                    />
+                                    {grammarDetails.reason && (
+                                      <span className="ml-1 text-xs text-slate-400">({grammarDetails.reason})</span>
                                     )}
-                                  >
-                                    <button
-                                      type="submit"
-                                      disabled={!isOpen}
-                                      title="Opraveno"
-                                      className="rounded-full p-1 disabled:cursor-default"
-                                    >
-                                      <CheckCircle2
-                                        className={cn("h-5 w-5", !isOpen ? "text-brand-green-600" : "text-slate-300")}
-                                      />
-                                    </button>
-                                  </form>
-                                  {reviewerInitials(finding.reviewedBy) && (
-                                    <div
-                                      title={`Naposledy vyhodnotil: ${
-                                        finding.reviewedBy?.name ?? finding.reviewedBy?.email ?? ""
-                                      }`}
-                                      className="ml-0.5 flex flex-col items-center justify-center gap-px leading-none text-[9px] font-semibold uppercase text-slate-400"
-                                    >
-                                      {reviewerInitials(finding.reviewedBy)!.map((letter, i) => (
-                                        <span key={i}>{letter}</span>
-                                      ))}
-                                    </div>
-                                  )}
+                                  </p>
+                                ) : (
+                                  <p className="text-sm text-slate-700">{finding.message}</p>
+                                )}
+                                <div className="mt-1.5">
+                                  <Badge tone={findingTypeTone(finding)} className="font-semibold">
+                                    {findingTypeLabel(finding)}
+                                  </Badge>
                                 </div>
-                              </div>
+                              </FindingRow>
                             );
                           })}
                         </div>

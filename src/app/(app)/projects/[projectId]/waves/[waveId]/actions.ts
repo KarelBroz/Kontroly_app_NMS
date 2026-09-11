@@ -73,6 +73,13 @@ export async function rerunWave(projectId: string, waveId: string) {
   redirect(`${wavePath(projectId, waveId)}?saved=${encodeURIComponent("Zkontrolováno")}`);
 }
 
+/**
+ * Volá se přímo z klienta (FindingRow.tsx), NE přes <form> — proto tu
+ * záměrně není redirect() (ten by i tak vynutil navigaci). Stránka vlny se
+ * po kliknutí NEPŘEKRESLÍ hned (viz FindingRow — optimistické UI), jen
+ * revalidatePath označí cestu jako neaktuální, ať se při dalším skutečném
+ * načtení (F5, návrat na stránku) seznam správně přeskládá.
+ */
 export async function updateFindingStatus(
   projectId: string,
   waveId: string,
@@ -89,8 +96,6 @@ export async function updateFindingStatus(
     },
   });
   revalidatePath(wavePath(projectId, waveId));
-  const message = status === FindingStatus.RESOLVED ? "Vyřešeno" : "Ignorováno";
-  redirect(`${wavePath(projectId, waveId)}?saved=${encodeURIComponent(message)}`);
 }
 
 // ---------- Nastavení vlny: základní údaje ----------

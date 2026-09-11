@@ -5,12 +5,14 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { FolderKanban, AlertTriangle, Plus } from "lucide-react";
 import { isProjectCodeStale, suggestedProjectCode } from "@/lib/projectCode";
+import { getLastActiveWaveIdsByProject, projectQuickLink } from "@/lib/waves/lastActiveWave";
 
 export default async function ProjectsPage() {
   const projects = await prisma.project.findMany({
     orderBy: { updatedAt: "desc" },
     include: { waves: { select: { id: true } } },
   });
+  const lastActiveWaveIds = await getLastActiveWaveIdsByProject(projects.map((p) => p.id));
 
   return (
     <div className="space-y-8">
@@ -41,7 +43,7 @@ export default async function ProjectsPage() {
             const suggested = project.code ? suggestedProjectCode(project.code) : null;
 
             return (
-              <Link key={project.id} href={`/projects/${project.id}`}>
+              <Link key={project.id} href={projectQuickLink(project.id, lastActiveWaveIds)}>
                 <Card className="h-full cursor-pointer">
                   {project.logoUrl ? (
                     // eslint-disable-next-line @next/next/no-img-element
