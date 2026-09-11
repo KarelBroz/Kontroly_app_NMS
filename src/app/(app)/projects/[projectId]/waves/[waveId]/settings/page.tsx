@@ -17,6 +17,7 @@ import {
   removeScenario,
   createRule,
   deleteRule,
+  bulkCreateRules,
 } from "../actions";
 
 const MONTHS = [
@@ -34,9 +35,26 @@ const MONTHS = [
   "Prosinec",
 ];
 
+const WEEKDAYS = [
+  { day: 1, label: "Pondělí" },
+  { day: 2, label: "Úterý" },
+  { day: 3, label: "Středa" },
+  { day: 4, label: "Čtvrtek" },
+  { day: 5, label: "Pátek" },
+  { day: 6, label: "Sobota" },
+  { day: 7, label: "Neděle" },
+];
+
+interface WeeklyWindowShape {
+  day: number;
+  startHour: number;
+  endHour: number;
+}
+
 interface ScenarioDataShape {
   windowStart?: string;
   windowEnd?: string;
+  weeklyWindows?: WeeklyWindowShape[];
 }
 
 export default async function WaveSettingsPage({
@@ -179,6 +197,59 @@ export default async function WaveSettingsPage({
                       automaticky u každého importu.
                     </p>
 
+                    <div className="border-t border-slate-100 pt-6">
+                      <h4 className="mb-1 text-sm font-semibold text-slate-900">
+                        Opakující se týdenní rozvrh (nepovinné)
+                      </h4>
+                      <p className="mb-3 text-xs text-slate-500">
+                        Pro scénáře typu "mimo špička"/"špička" — kdy v týdnu (a v kolik hodin) se smí návštěva
+                        odehrát. Nezaškrtnutý den (např. neděle) = v ten den se nejezdí, každá návštěva z toho dne
+                        se nahlásí jako mimo okno. Když není zaškrtnutý žádný den, kontroluje se jen Start/Konec
+                        terénu výše.
+                      </p>
+                      <div className="space-y-1.5">
+                        {WEEKDAYS.map(({ day, label }) => {
+                          const existing = data?.weeklyWindows?.find((w) => w.day === day);
+                          return (
+                            <div key={day} className="flex flex-wrap items-center gap-3 text-sm">
+                              <label className="flex w-32 shrink-0 items-center gap-2">
+                                <input
+                                  type="checkbox"
+                                  name={`weeklyDay_${day}`}
+                                  defaultChecked={Boolean(existing)}
+                                  className="rounded border-slate-300"
+                                />
+                                {label}
+                              </label>
+                              <span className="text-xs text-slate-400">od</span>
+                              <input
+                                type="number"
+                                name={`weeklyStart_${day}`}
+                                min={0}
+                                max={24}
+                                step={0.5}
+                                defaultValue={existing?.startHour ?? ""}
+                                placeholder="8"
+                                className="w-16 rounded-lg border border-slate-200 px-2 py-1 text-sm focus:border-brand-blue-400 focus:outline-none focus:ring-2 focus:ring-brand-blue-100"
+                              />
+                              <span className="text-xs text-slate-400">do</span>
+                              <input
+                                type="number"
+                                name={`weeklyEnd_${day}`}
+                                min={0}
+                                max={24}
+                                step={0.5}
+                                defaultValue={existing?.endHour ?? ""}
+                                placeholder="19"
+                                className="w-16 rounded-lg border border-slate-200 px-2 py-1 text-sm focus:border-brand-blue-400 focus:outline-none focus:ring-2 focus:ring-brand-blue-100"
+                              />
+                              <span className="text-xs text-slate-400">hodin</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+
                     {scenario.rules.length > 0 && (
                       <div>
                         <h4 className="mb-2 text-sm font-semibold text-slate-900">Pravidla kontroly</h4>
@@ -241,6 +312,32 @@ export default async function WaveSettingsPage({
                       </Button>
                     </div>
                   </form>
+
+                  <div className="mt-6 border-t border-slate-100 pt-6">
+                    <h4 className="mb-1 text-sm font-semibold text-slate-900">Hromadně přidat pravidla</h4>
+                    <p className="mb-3 text-xs text-slate-500">
+                      Jeden řádek = jedno pravidlo, formát{" "}
+                      <code className="rounded bg-slate-100 px-1 py-0.5">TYP|KÓD_OTÁZKY|hodnota</code>. Typ je
+                      jedno z REQUIRED / ALLOWED_VALUES / NUMERIC_RANGE / CONDITIONAL_REQUIRED / PRODUCT_ALLOWLIST.
+                      Hodnota podle typu: u ALLOWED_VALUES a PRODUCT_ALLOWLIST seznam oddělený čárkou, u
+                      NUMERIC_RANGE "min-max" (např. 0-10), u CONDITIONAL_REQUIRED "hodnota -&gt; KÓD_DOPLŇUJÍCÍ_OTÁZKY"
+                      (např. "Ano -&gt; SCO1j"), u REQUIRED se hodnota vynechává.
+                    </p>
+                    <form
+                      action={bulkCreateRules.bind(null, wave.projectId, wave.id, scenario.id)}
+                      className="space-y-3"
+                    >
+                      <textarea
+                        name="bulkRules"
+                        rows={4}
+                        placeholder={"REQUIRED|X02\nALLOWED_VALUES|I01|Ano,Ne,Nehodnoceno\nCONDITIONAL_REQUIRED|SCO1|Ano -> SCO1j"}
+                        className="w-full rounded-xl border border-slate-200 px-3.5 py-2.5 font-mono text-xs text-slate-900 focus:border-brand-blue-400 focus:outline-none focus:ring-2 focus:ring-brand-blue-100"
+                      />
+                      <Button type="submit" variant="secondary" size="sm">
+                        Přidat všechna pravidla
+                      </Button>
+                    </form>
+                  </div>
                 </Card>
               );
             })}

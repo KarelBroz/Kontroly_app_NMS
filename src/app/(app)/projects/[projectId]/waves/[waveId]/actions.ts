@@ -219,12 +219,28 @@ export async function updateScenarioSettings(
   const windowStart = String(formData.get("windowStart") || "").trim();
   const windowEnd = String(formData.get("windowEnd") || "").trim();
 
+  // Opakující se týdenní rozvrh (mimo špička / špička apod.) — den 1-7
+  // (po-ne), zaškrtnutý přes weeklyDay_<den>, s hodinovým rozmezím
+  // weeklyStart_<den>/weeklyEnd_<den>. Nezaškrtnuté dny (např. neděle)
+  // se do rozvrhu vůbec nedostanou — návštěva v ten den tak vždy spadne
+  // mimo okno, viz checkRealDateWindow.
+  const weeklyWindows: { day: number; startHour: number; endHour: number }[] = [];
+  for (let day = 1; day <= 7; day++) {
+    if (!formData.has(`weeklyDay_${day}`)) continue;
+    const startHour = Number(formData.get(`weeklyStart_${day}`));
+    const endHour = Number(formData.get(`weeklyEnd_${day}`));
+    if (Number.isFinite(startHour) && Number.isFinite(endHour) && endHour > startHour) {
+      weeklyWindows.push({ day, startHour, endHour });
+    }
+  }
+
   await prisma.scenario.update({
     where: { id: scenarioId },
     data: {
       data: {
         windowStart: windowStart || undefined,
         windowEnd: windowEnd || undefined,
+        weeklyWindows: weeklyWindows.length > 0 ? weeklyWindows : undefined,
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
       } as any,
     },
@@ -266,6 +282,60 @@ export async function removeScenario(projectId: string, waveId: string, scenario
 
 // ---------- Nastavení vlny: pravidla (per scénář) ----------
 
+/**
+ * Sestaví config pro dané RuleType z jednoho textového pole "hodnota" —
+ * formát pole se liší podle typu (viz dynamická nápověda v RuleTypeField):
+ * - ALLOWED_VALUES / PRODUCT_ALLOWLIST: "hodnota1, hodnota2, ..."
+ * - NUMERIC_RANGE: "min-max", např. "0-180"
+ * - CONDITIONAL_REQUIRED: "hodnota -> KÓD_DOPLŇUJÍCÍ_OTÁZKY", např. "Ano -> SCO1j"
+ * Sdílené mezi createRule (jedno pravidlo přes formulář) a bulkCreateRules
+ * (víc pravidel najednou přes vložený seznam řádků).
+ */
+function buildRuleConfig(
+  type: RuleType,
+  questionCode: string,
+  valueRaw: string
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+): { config: Record<string, any>; error: string | null } {
+  const config: Record<string, unknown> = { questionCode };
+
+  if (type === RuleType.ALLOWED_VALUES || type === RuleType.PRODUCT_ALLOWLIST) {
+    const values = valueRaw
+      .split(",")
+      .map((v) => v.trim())
+      .filter(Boolean);
+    if (values.length === 0) {
+      const label = type === RuleType.ALLOWED_VALUES ? "Povolené hodnoty" : "Povolený seznam artiklů";
+      return { config, error: `U typu "${label}" zadej alespoň jednu hodnotu (odděl čárkou).` };
+    }
+    if (type === RuleType.ALLOWED_VALUES) config.allowedValues = values;
+    else config.allowedProducts = values;
+  }
+
+  if (type === RuleType.NUMERIC_RANGE) {
+    const match = valueRaw.match(/^(-?\d+(?:[.,]\d+)?)\s*-\s*(-?\d+(?:[.,]\d+)?)$/);
+    if (!match) {
+      return { config, error: 'U typu "Číselný rozsah" zadej rozsah ve formátu min-max, např. 0-180.' };
+    }
+    config.min = Number(match[1].replace(",", "."));
+    config.max = Number(match[2].replace(",", "."));
+  }
+
+  if (type === RuleType.CONDITIONAL_REQUIRED) {
+    const match = valueRaw.match(/^(.+?)\s*->\s*(.+)$/);
+    if (!match) {
+      return {
+        config,
+        error: 'U typu "Podmíněně povinné" zadej ve formátu hodnota -> KÓD_OTÁZKY, např. "Ano -> SCO1j".',
+      };
+    }
+    config.notEqualsValue = match[1].trim();
+    config.detailQuestionCode = match[2].trim();
+  }
+
+  return { config, error: null };
+}
+
 export async function createRule(projectId: string, waveId: string, scenarioId: string, formData: FormData) {
   const questionCode = String(formData.get("questionCode") || "").trim();
   const typeRaw = String(formData.get("type") || "");
@@ -280,35 +350,9 @@ export async function createRule(projectId: string, waveId: string, scenarioId: 
   }
   const type = typeRaw as RuleType;
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const config: Record<string, any> = { questionCode };
-
-  if (type === RuleType.ALLOWED_VALUES) {
-    const values = allowedValueRaw
-      .split(",")
-      .map((v) => v.trim())
-      .filter(Boolean);
-    if (values.length === 0) {
-      redirect(
-        `${settingsPath(projectId, waveId)}?error=${encodeURIComponent(
-          "U typu \"Povolené hodnoty\" zadej alespoň jednu hodnotu (odděl čárkou)."
-        )}`
-      );
-    }
-    config.allowedValues = values;
-  }
-
-  if (type === RuleType.NUMERIC_RANGE) {
-    const match = allowedValueRaw.match(/^(-?\d+(?:[.,]\d+)?)\s*-\s*(-?\d+(?:[.,]\d+)?)$/);
-    if (!match) {
-      redirect(
-        `${settingsPath(projectId, waveId)}?error=${encodeURIComponent(
-          'U typu "Číselný rozsah" zadej rozsah ve formátu min-max, např. 0-180.'
-        )}`
-      );
-    }
-    config.min = Number(match[1].replace(",", "."));
-    config.max = Number(match[2].replace(",", "."));
+  const { config, error } = buildRuleConfig(type, questionCode, allowedValueRaw);
+  if (error) {
+    redirect(`${settingsPath(projectId, waveId)}?error=${encodeURIComponent(error)}`);
   }
 
   const name = `${questionCode} — ${RULE_TYPE_LABELS[type]}`;
@@ -328,6 +372,60 @@ export async function createRule(projectId: string, waveId: string, scenarioId: 
   revalidatePath(settingsPath(projectId, waveId));
   revalidatePath(wavePath(projectId, waveId));
   redirect(`${settingsPath(projectId, waveId)}?saved=${encodeURIComponent("Pravidlo přidáno")}`);
+}
+
+/**
+ * Hromadné přidání víc pravidel najednou — jeden řádek = jedno pravidlo,
+ * formát "TYP|KÓD_OTÁZKY|hodnota" (hodnota podle typu, viz buildRuleConfig).
+ * Typ je název RuleType (REQUIRED/ALLOWED_VALUES/NUMERIC_RANGE/
+ * CONDITIONAL_REQUIRED/PRODUCT_ALLOWLIST). Pro REQUIRED se třetí část
+ * ignoruje/vynechává.
+ */
+export async function bulkCreateRules(projectId: string, waveId: string, scenarioId: string, formData: FormData) {
+  const raw = String(formData.get("bulkRules") || "").trim();
+  if (!raw) {
+    redirect(`${settingsPath(projectId, waveId)}?error=${encodeURIComponent("Vlož alespoň jeden řádek pravidla.")}`);
+  }
+
+  const lines = raw
+    .split("\n")
+    .map((l) => l.trim())
+    .filter(Boolean);
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const toCreate: { scenarioId: string; type: RuleType; name: string; config: any }[] = [];
+  const errors: string[] = [];
+
+  lines.forEach((line, i) => {
+    const parts = line.split("|").map((p) => p.trim());
+    const [typeRaw, questionCode, valueRaw = ""] = parts;
+    if (!typeRaw || !questionCode) {
+      errors.push(`Řádek ${i + 1}: chybí typ nebo kód otázky.`);
+      return;
+    }
+    if (!Object.values(RuleType).includes(typeRaw as RuleType)) {
+      errors.push(`Řádek ${i + 1}: neplatný typ "${typeRaw}".`);
+      return;
+    }
+    const type = typeRaw as RuleType;
+    const { config, error } = buildRuleConfig(type, questionCode, valueRaw);
+    if (error) {
+      errors.push(`Řádek ${i + 1} (${questionCode}): ${error}`);
+      return;
+    }
+    toCreate.push({ scenarioId, type, name: `${questionCode} — ${RULE_TYPE_LABELS[type]}`, config });
+  });
+
+  if (errors.length > 0) {
+    redirect(`${settingsPath(projectId, waveId)}?error=${encodeURIComponent(errors.join(" | "))}`);
+  }
+
+  await prisma.rule.createMany({ data: toCreate });
+  await rerunRulesForScenario(scenarioId);
+
+  revalidatePath(settingsPath(projectId, waveId));
+  revalidatePath(wavePath(projectId, waveId));
+  redirect(`${settingsPath(projectId, waveId)}?saved=${encodeURIComponent(`${toCreate.length} pravidel přidáno`)}`);
 }
 
 // Explicitní `_formData` parametr (i když se nečte) — použité přes `formAction`

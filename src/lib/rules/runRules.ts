@@ -2,6 +2,8 @@ import { prisma } from "@/lib/prisma";
 import { checkRequired } from "./required";
 import { checkAllowedValues } from "./allowedValues";
 import { checkNumericRange } from "./numericRange";
+import { checkConditionalRequired } from "./conditionalRequired";
+import { checkProductAllowlist } from "./productAllowlist";
 import { checkRealDateWindow, buildRealDateMessage } from "./realDateWindow";
 import { checkTextForIssues } from "./grammarCheck";
 import { isQuestionColumn } from "./matchQuestion";
@@ -12,6 +14,8 @@ const CHECKERS: Record<RuleType, RuleChecker> = {
   [RuleType.REQUIRED]: checkRequired,
   [RuleType.ALLOWED_VALUES]: checkAllowedValues,
   [RuleType.NUMERIC_RANGE]: checkNumericRange,
+  [RuleType.CONDITIONAL_REQUIRED]: checkConditionalRequired,
+  [RuleType.PRODUCT_ALLOWLIST]: checkProductAllowlist,
 };
 
 /**

@@ -23,6 +23,8 @@ const RULE_TYPE_TONE: Record<RuleType, BadgeTone> = {
   [RuleType.REQUIRED]: "blue",
   [RuleType.ALLOWED_VALUES]: "purple",
   [RuleType.NUMERIC_RANGE]: "cyan",
+  [RuleType.CONDITIONAL_REQUIRED]: "indigo",
+  [RuleType.PRODUCT_ALLOWLIST]: "green",
 };
 const SYSTEM_CHECK_TONE: Record<string, BadgeTone> = {
   [SystemCheckType.REAL_DATE_WINDOW]: "amber",

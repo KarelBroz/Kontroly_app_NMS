@@ -257,6 +257,13 @@ enum RuleType {
   REQUIRED // Povinné pole — otázka (Kód otázky) nesmí být prázdná
   ALLOWED_VALUES // Povolené hodnoty — odpověď musí být jedna ze zadaného seznamu
   NUMERIC_RANGE // Číselný rozsah — odpověď musí být číslo v zadaném rozsahu
+  // Podmíněně povinné — pokud "Kód otázky" NENÍ roven zadané hodnotě (např.
+  // odpověď není "Ano"), musí být vyplněná navazující doplňující otázka
+  // (config.detailQuestionCode) — typicky "vysvětlete, co se stalo".
+  CONDITIONAL_REQUIRED
+  // Povolený seznam artiklů — odpověď musí odpovídat jedné z položek
+  // seznamu, tolerantně (velikost písmen, slovosled, drobné překlepy).
+  PRODUCT_ALLOWLIST
 }
 
 // Pravidlo kontroly navázané na konkrétní scénář (ne na celou vlnu) —

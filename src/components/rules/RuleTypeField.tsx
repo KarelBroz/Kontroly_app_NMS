@@ -25,6 +25,19 @@ const TYPE_OPTIONS: Array<{ value: string; label: string; placeholder: string; h
     placeholder: "např. 0-180",
     helper: "Zadej rozsah ve formátu min-max.",
   },
+  {
+    value: "CONDITIONAL_REQUIRED",
+    label: "Podmíněně povinné",
+    placeholder: "např. Ano -> SCO1j",
+    helper:
+      'Pokud odpověď NENÍ rovna zadané hodnotě, musí být vyplněná doplňující otázka. Formát "hodnota -> KÓD_DOPLŇUJÍCÍ_OTÁZKY".',
+  },
+  {
+    value: "PRODUCT_ALLOWLIST",
+    label: "Povolený seznam artiklů",
+    placeholder: "např. Donut s náplní, Croissant máslový",
+    helper: "Vyjmenuj povolené artikly oddělené čárkou — kontrola je tolerantní na velikost písmen, slovosled i drobný překlep.",
+  },
 ];
 
 /** Kód otázky + Typ + Povolená hodnota pro založení pravidla — nápověda a placeholder se mění podle vybraného typu. */

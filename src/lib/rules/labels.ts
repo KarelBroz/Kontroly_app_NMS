@@ -5,6 +5,8 @@ export const RULE_TYPE_LABELS: Record<RuleType, string> = {
   [RuleType.REQUIRED]: "Povinné pole",
   [RuleType.ALLOWED_VALUES]: "Povolené hodnoty",
   [RuleType.NUMERIC_RANGE]: "Číselný rozsah",
+  [RuleType.CONDITIONAL_REQUIRED]: "Podmíněně povinné",
+  [RuleType.PRODUCT_ALLOWLIST]: "Povolený seznam artiklů",
 };
 
 /** Popisky pro automatické systémové kontroly (běží vždy, bez ruční konfigurace). */

@@ -1,11 +1,24 @@
 import { FindingSeverity } from "@prisma/client";
 
-// Scénář teď nese jen okno terénu ("Start terénu" / "Konec terénu").
-// Zobrazovaná pobočka a klíčové otázky byly odstraněny — kontrola odpovědí
-// se řeší přes pravidla navázaná na "Kód otázky" (viz matchQuestion.ts).
+// Jedno opakující se týdenní okno — den (1=pondělí…7=neděle, jako Excelí
+// WEEKDAY(datum,11)) + hodinové rozmezí od startHour do endHour (endHour
+// se do okna nepočítá). Pro scénáře typu "mimo špička"/"špička" s pevným
+// rozvrhem napříč dny v týdnu — viz src/lib/rules/realDateWindow.ts.
+export interface WeeklyWindow {
+  day: number;
+  startHour: number;
+  endHour: number;
+}
+
+// Scénář nese okno terénu ("Start terénu" / "Konec terénu") a volitelně
+// opakující se týdenní rozvrh (weeklyWindows) — obojí se kontroluje
+// automaticky u každé návštěvy, viz checkRealDateWindow. Zobrazovaná
+// pobočka a klíčové otázky byly odstraněny — kontrola odpovědí se řeší přes
+// pravidla navázaná na "Kód otázky" (viz matchQuestion.ts).
 export interface ScenarioData {
   windowStart?: string;
   windowEnd?: string;
+  weeklyWindows?: WeeklyWindow[];
 }
 
 export interface RuleCheckInput {

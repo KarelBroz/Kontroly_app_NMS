@@ -1,9 +1,24 @@
-import type { ScenarioData } from "./types";
+import type { ScenarioData, WeeklyWindow } from "./types";
+
+const DAY_NAMES_CZ = ["", "Pondělí", "Úterý", "Středa", "Čtvrtek", "Pátek", "Sobota", "Neděle"];
+
+function formatHour(h: number): string {
+  return Number.isInteger(h) ? String(h) : h.toFixed(2).replace(/\.?0+$/, "");
+}
+
+function formatWeeklyWindows(windows: WeeklyWindow[]): string {
+  return windows
+    .slice()
+    .sort((a, b) => a.day - b.day || a.startHour - b.startHour)
+    .map((w) => `${DAY_NAMES_CZ[w.day] ?? `den ${w.day}`} ${formatHour(w.startHour)}–${formatHour(w.endHour)}`)
+    .join(", ");
+}
 
 export type RealDateIssue =
   | { reason: "missing" }
   | { reason: "invalid"; raw: string }
-  | { reason: "out_of_range"; raw: string; parsed: string };
+  | { reason: "out_of_range"; raw: string; parsed: string }
+  | { reason: "outside_weekly_window"; raw: string; parsed: string; windows: WeeklyWindow[] };
 
 const REAL_DATE_COLUMN = "RealDate";
 
@@ -63,7 +78,8 @@ export function checkRealDateWindow(
   visitData: Record<string, unknown>,
   scenario: ScenarioData | null
 ): RealDateIssue | null {
-  if (!scenario || (!scenario.windowStart && !scenario.windowEnd)) return null;
+  const weeklyWindows = scenario?.weeklyWindows ?? [];
+  if (!scenario || (!scenario.windowStart && !scenario.windowEnd && weeklyWindows.length === 0)) return null;
 
   const raw = visitData[REAL_DATE_COLUMN];
   if (raw === undefined || raw === null || String(raw).trim() === "") {
@@ -82,6 +98,19 @@ export function checkRealDateWindow(
   if (outOfRange) {
     return { reason: "out_of_range", raw: String(raw), parsed: visitDate.toISOString() };
   }
+
+  // Opakující se týdenní rozvrh (např. "mimo špička" / "špička") — datum a
+  // čas se čtou jako UTC složky (stejná konvence jako excelSerialToDate:
+  // Date reprezentuje "nástěnný" čas z buňky, ne skutečný okamžik v UTC).
+  if (weeklyWindows.length > 0) {
+    const day = ((visitDate.getUTCDay() + 6) % 7) + 1; // JS getUTCDay(): 0=Ne..6=So -> 1=Po..7=Ne
+    const hour = visitDate.getUTCHours() + visitDate.getUTCMinutes() / 60;
+    const matches = weeklyWindows.some((w) => w.day === day && hour >= w.startHour && hour < w.endHour);
+    if (!matches) {
+      return { reason: "outside_weekly_window", raw: String(raw), parsed: visitDate.toISOString(), windows: weeklyWindows };
+    }
+  }
+
   return null;
 }
 
@@ -91,6 +120,9 @@ export function buildRealDateMessage(issue: RealDateIssue, scenario: ScenarioDat
   }
   if (issue.reason === "invalid") {
     return `Sloupec "${REAL_DATE_COLUMN}" ("${issue.raw}") nejde přečíst jako datum.`;
+  }
+  if (issue.reason === "outside_weekly_window") {
+    return `Datum návštěvy (${new Date(issue.parsed).toLocaleString("cs-CZ")}) nespadá do žádného z povolených termínů: ${formatWeeklyWindows(issue.windows)}.`;
   }
   const from = scenario?.windowStart ? ` od ${new Date(scenario.windowStart).toLocaleString("cs-CZ")}` : "";
   const to = scenario?.windowEnd ? ` do ${new Date(scenario.windowEnd).toLocaleString("cs-CZ")}` : "";
