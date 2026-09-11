@@ -9,13 +9,7 @@ import { FolderKanban, Upload, Plus, FolderCheck, ClipboardList, AlertCircle } f
 import { fixMojibakeFileName } from "@/lib/fixMojibakeFileName";
 import { StatTile } from "@/components/stats/StatTile";
 import { TopReviewersCard } from "@/components/stats/TopReviewersCard";
-import { WavesAttentionCard } from "@/components/stats/WavesAttentionCard";
-import {
-  getMonthlyActivity,
-  getOpenFindingsByProject,
-  getTopReviewers,
-  getWavesNeedingAttention,
-} from "@/lib/stats/getStats";
+import { getMonthlyActivity, getOpenFindingsByProject, getTopReviewers } from "@/lib/stats/getStats";
 import { currentYearMonth, monthLabel, monthRange } from "@/lib/stats/dateRange";
 
 export default async function HomePage() {
@@ -27,23 +21,21 @@ export default async function HomePage() {
   const range = monthRange(year, month);
   const periodLabel = `${monthLabel(month)} ${year}`;
 
-  const [projects, recentBatches, monthlyActivity, openFindings, topReviewers, wavesNeedingAttention] =
-    await Promise.all([
-      prisma.project.findMany({
-        orderBy: { updatedAt: "desc" },
-        take: 8,
-        include: { waves: { select: { id: true } } },
-      }),
-      prisma.importBatch.findMany({
-        orderBy: { createdAt: "desc" },
-        take: 6,
-        include: { wave: { include: { project: true } }, uploadedBy: true },
-      }),
-      getMonthlyActivity(range),
-      getOpenFindingsByProject(),
-      getTopReviewers(range),
-      getWavesNeedingAttention(),
-    ]);
+  const [projects, recentBatches, monthlyActivity, openFindings, topReviewers] = await Promise.all([
+    prisma.project.findMany({
+      orderBy: { updatedAt: "desc" },
+      take: 8,
+      include: { waves: { select: { id: true } } },
+    }),
+    prisma.importBatch.findMany({
+      orderBy: { createdAt: "desc" },
+      take: 6,
+      include: { wave: { include: { project: true } }, uploadedBy: true },
+    }),
+    getMonthlyActivity(range),
+    getOpenFindingsByProject(),
+    getTopReviewers(range),
+  ]);
 
   return (
     <div className="space-y-10">
@@ -100,12 +92,6 @@ export default async function HomePage() {
           <TopReviewersCard reviewers={topReviewers} periodLabel={periodLabel} />
         </div>
       </section>
-
-      {wavesNeedingAttention.length > 0 && (
-        <section>
-          <WavesAttentionCard waves={wavesNeedingAttention} />
-        </section>
-      )}
 
       <section>
         <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-slate-500">Projekty</h2>
