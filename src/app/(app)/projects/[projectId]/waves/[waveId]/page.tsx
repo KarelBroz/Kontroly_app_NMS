@@ -37,6 +37,12 @@ const STATUS_OPTIONS = [
   { value: "clean", label: "Bez chyby" },
   { value: "empty", label: "Bez odpovědí" },
 ];
+const SORT_OPTIONS = [
+  { value: "priority", label: "Chybové nahoře (výchozí)" },
+  { value: "newest", label: "Nejnovější první" },
+  { value: "oldest", label: "Nejstarší první" },
+  { value: "id", label: "ID kontroly A→Z" },
+];
 
 // Každá kategorie nálezu má vlastní barvu, ať se dá napříč přehledem rychle rozlišit.
 const RULE_TYPE_TONE: Record<RuleType, BadgeTone> = {
@@ -126,6 +132,7 @@ export default async function WaveDetailPage({
     status?: string;
     reviewer?: string;
     q?: string;
+    sort?: string;
     page?: string;
   };
 }) {
@@ -202,7 +209,7 @@ export default async function WaveDetailPage({
       a.findings.filter((f) => f.status === FindingStatus.OPEN).length
   );
 
-  const bucketed =
+  const statusFiltered =
     statusFilter === "error"
       ? errorVisits
       : statusFilter === "clean"
@@ -210,6 +217,17 @@ export default async function WaveDetailPage({
         : statusFilter === "empty"
           ? emptyVisits
           : [...errorVisits, ...cleanVisits, ...emptyVisits];
+
+  const sortMode = searchParams.sort && searchParams.sort !== "priority" ? searchParams.sort : "priority";
+  const bucketed =
+    sortMode === "priority"
+      ? statusFiltered
+      : [...statusFiltered].sort((a, b) => {
+          if (sortMode === "newest") return b.updatedAt.getTime() - a.updatedAt.getTime();
+          if (sortMode === "oldest") return a.updatedAt.getTime() - b.updatedAt.getTime();
+          if (sortMode === "id") return a.inspectionId.localeCompare(b.inspectionId, "cs");
+          return 0;
+        });
 
   const currentPage = Math.max(1, parseInt(searchParams.page ?? "1", 10) || 1);
   const totalPages = Math.max(1, Math.ceil(bucketed.length / PAGE_SIZE));
@@ -222,6 +240,7 @@ export default async function WaveDetailPage({
   if (searchParams.reviewer && searchParams.reviewer !== "all") filterQuery.set("reviewer", searchParams.reviewer);
   if (searchParams.status && searchParams.status !== "all") filterQuery.set("status", searchParams.status);
   if (searchParams.q?.trim()) filterQuery.set("q", searchParams.q.trim());
+  if (searchParams.sort && searchParams.sort !== "priority") filterQuery.set("sort", searchParams.sort);
   const filterQueryString = filterQuery.toString();
   const pageHref = (p: number) => {
     const qs = new URLSearchParams(filterQuery);
@@ -429,6 +448,21 @@ export default async function WaveDetailPage({
                     {reviewerOptions.map((r) => (
                       <option key={r.id} value={r.id}>
                         {r.firstName} {r.lastName}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="w-48">
+                  <Label htmlFor="sort">Řadit</Label>
+                  <select
+                    id="sort"
+                    name="sort"
+                    defaultValue={sortMode}
+                    className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:border-brand-blue-400 focus:outline-none focus:ring-2 focus:ring-brand-blue-100"
+                  >
+                    {SORT_OPTIONS.map((o) => (
+                      <option key={o.value} value={o.value}>
+                        {o.label}
                       </option>
                     ))}
                   </select>
