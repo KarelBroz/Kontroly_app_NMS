@@ -104,3 +104,82 @@ export async function getTopReviewers(range: DateRange): Promise<ReviewerCount[]
     .map(([userId, e]) => ({ userId, name: e.name, count: e.count }))
     .sort((a, b) => b.count - a.count);
 }
+
+export interface WaveAttention {
+  waveId: string;
+  waveName: string;
+  projectId: string;
+  projectName: string;
+  openFindingsCount: number;
+  earliestWindowEnd: Date;
+  isOverdue: boolean;
+}
+
+/**
+ * Vlny, které "vyžadují pozornost" — mají u některého scénáře Konec terénu
+ * už uplynulý nebo blízko (do `withinDays` dnů) A ZÁROVEŇ ještě mají
+ * otevřené nálezy. Pro widget na homepage.
+ */
+export async function getWavesNeedingAttention(withinDays = 3): Promise<WaveAttention[]> {
+  const now = new Date();
+  const horizon = new Date(now.getTime() + withinDays * 24 * 60 * 60 * 1000);
+
+  const [openFindings, scenarios] = await Promise.all([
+    prisma.finding.findMany({
+      where: { status: FindingStatus.OPEN },
+      select: { visit: { select: { waveId: true } } },
+    }),
+    prisma.scenario.findMany({
+      select: {
+        data: true,
+        wave: { select: { id: true, name: true, projectId: true, project: { select: { name: true } } } },
+      },
+    }),
+  ]);
+
+  const openCountByWave = new Map<string, number>();
+  for (const f of openFindings) {
+    openCountByWave.set(f.visit.waveId, (openCountByWave.get(f.visit.waveId) ?? 0) + 1);
+  }
+
+  const earliestEndByWave = new Map<
+    string,
+    { end: Date; waveName: string; projectId: string; projectName: string }
+  >();
+  for (const s of scenarios) {
+    const data = s.data as { windowEnd?: string } | null;
+    if (!data || !data.windowEnd) continue;
+    const end = new Date(data.windowEnd);
+    if (Number.isNaN(end.getTime())) continue;
+    const existing = earliestEndByWave.get(s.wave.id);
+    if (!existing || end < existing.end) {
+      earliestEndByWave.set(s.wave.id, {
+        end: end,
+        waveName: s.wave.name,
+        projectId: s.wave.projectId,
+        projectName: s.wave.project.name,
+      });
+    }
+  }
+
+  const result: WaveAttention[] = [];
+  for (const entry of earliestEndByWave) {
+    const waveId = entry[0];
+    const info = entry[1];
+    const openFindingsCount = openCountByWave.get(waveId) ?? 0;
+    if (openFindingsCount === 0) continue;
+    if (info.end > horizon) continue;
+    result.push({
+      waveId: waveId,
+      waveName: info.waveName,
+      projectId: info.projectId,
+      projectName: info.projectName,
+      openFindingsCount: openFindingsCount,
+      earliestWindowEnd: info.end,
+      isOverdue: info.end < now,
+    });
+  }
+
+  result.sort((a, b) => a.earliestWindowEnd.getTime() - b.earliestWindowEnd.getTime());
+  return result;
+}
