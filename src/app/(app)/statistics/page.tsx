@@ -45,8 +45,18 @@ export default async function StatisticsPage({
 
   const top3Reviewers = reviewers.slice(0, 3);
   const restReviewers = reviewers.slice(3).map((r) => ({ key: r.userId, label: r.name, count: r.count }));
-  const projectItems = activity.visits.ranked.map((p) => ({ key: p.projectId, label: p.projectName, count: p.count }));
-  const openFindingItems = openFindings.ranked.map((p) => ({ key: p.projectId, label: p.projectName, count: p.count }));
+  const projectItems = activity.visits.ranked.map((p) => ({
+    key: p.projectId,
+    label: p.projectName,
+    count: p.count,
+    href: `/projects/${p.projectId}`,
+  }));
+  const openFindingItems = openFindings.ranked.map((p) => ({
+    key: p.projectId,
+    label: p.projectName,
+    count: p.count,
+    href: `/projects/${p.projectId}`,
+  }));
 
   return (
     <div className="space-y-8">

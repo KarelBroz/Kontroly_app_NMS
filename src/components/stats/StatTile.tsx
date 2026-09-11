@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { LucideIcon } from "lucide-react";
 import { Card } from "@/components/ui/Card";
 import type { ProjectCount } from "@/lib/stats/getStats";
@@ -46,15 +47,19 @@ export function StatTile({
           <p className="text-xs text-slate-400">{emptyText}</p>
         ) : (
           ranked.slice(0, 3).map((p, i) => (
-            <div key={p.projectId} className="flex items-center justify-between gap-2 text-xs">
+            <Link
+              key={p.projectId}
+              href={`/projects/${p.projectId}`}
+              className="-mx-1.5 flex items-center justify-between gap-2 rounded-lg px-1.5 py-0.5 text-xs hover:bg-slate-50"
+            >
               <span className="flex min-w-0 items-center gap-1.5 text-slate-600">
                 <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-slate-100 text-[10px] font-semibold text-slate-500">
                   {i + 1}
                 </span>
-                <span className="truncate">{p.projectName}</span>
+                <span className="truncate hover:underline">{p.projectName}</span>
               </span>
               <span className="shrink-0 font-semibold text-slate-900">{p.count}</span>
-            </div>
+            </Link>
           ))
         )}
       </div>
