@@ -116,6 +116,7 @@ model ScenarioTemplate {
   scenarios Scenario[]
 
   @@unique([projectId, name])
+  @@index([projectId])
   @@map("scenario_templates")
 }
 
@@ -165,6 +166,7 @@ model Scenario {
   importBatches ImportBatch[]
 
   @@unique([waveId, scenarioTemplateId])
+  @@index([scenarioTemplateId])
   @@map("scenarios")
 }
 
@@ -187,6 +189,8 @@ model ImportBatch {
 
   visits Visit[]
 
+  @@index([waveId])
+  @@index([scenarioId])
   @@map("import_batches")
 }
 
@@ -232,6 +236,9 @@ model Visit {
   findings Finding[]
 
   @@unique([waveId, inspectionId])
+  @@index([scenarioId])
+  @@index([reviewerId])
+  @@index([lastImportBatchId])
   @@map("visits")
 }
 
@@ -291,6 +298,7 @@ model Rule {
 
   findings Finding[]
 
+  @@index([scenarioId])
   @@map("rules")
 }
 
@@ -338,6 +346,10 @@ model Finding {
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
 
+  @@index([visitId])
+  @@index([ruleId])
+  @@index([status])
+  @@index([reviewedById, resolvedAt])
   @@map("findings")
 }
 
