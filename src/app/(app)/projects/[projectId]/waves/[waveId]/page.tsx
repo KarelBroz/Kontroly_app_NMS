@@ -30,7 +30,15 @@ import { cn } from "@/lib/utils";
 import { importWaveFile, rerunWave, updateFindingStatus, deleteImportBatch } from "./actions";
 import { buildVisitWhere } from "./visitFilters";
 
-const PAGE_SIZE = 50;
+const DEFAULT_PAGE_SIZE = 50;
+const PAGE_SIZE_OPTIONS = [
+  { value: "10", label: "10" },
+  { value: "25", label: "25" },
+  { value: "50", label: "50" },
+  { value: "100", label: "100" },
+  { value: "200", label: "200" },
+  { value: "all", label: "Všechny" },
+];
 const STATUS_OPTIONS = [
   { value: "all", label: "Všechny" },
   { value: "error", label: "S chybou" },
@@ -134,6 +142,7 @@ export default async function WaveDetailPage({
     q?: string;
     sort?: string;
     page?: string;
+    pageSize?: string;
   };
 }) {
   const wave = await prisma.wave.findUnique({
@@ -232,10 +241,13 @@ export default async function WaveDetailPage({
     });
   }
 
+  const pageSizeParam = searchParams.pageSize ?? String(DEFAULT_PAGE_SIZE);
+  const pageSize = pageSizeParam === "all" ? bucketed.length || 1 : parseInt(pageSizeParam, 10) || DEFAULT_PAGE_SIZE;
   const currentPage = Math.max(1, parseInt(searchParams.page ?? "1", 10) || 1);
-  const totalPages = Math.max(1, Math.ceil(bucketed.length / PAGE_SIZE));
+  const totalPages = Math.max(1, Math.ceil(bucketed.length / pageSize));
   const safePage = Math.min(currentPage, totalPages);
-  const orderedVisits = bucketed.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE);
+  const orderedVisits =
+    pageSizeParam === "all" ? bucketed : bucketed.slice((safePage - 1) * pageSize, safePage * pageSize);
 
   // Query string pro odkazy stránkování/exportu — zachová aktuální filtry.
   const filterQuery = new URLSearchParams();
@@ -244,6 +256,7 @@ export default async function WaveDetailPage({
   if (searchParams.status && searchParams.status !== "all") filterQuery.set("status", searchParams.status);
   if (searchParams.q && searchParams.q.trim()) filterQuery.set("q", searchParams.q.trim());
   if (searchParams.sort && searchParams.sort !== "priority") filterQuery.set("sort", searchParams.sort);
+  if (pageSizeParam !== String(DEFAULT_PAGE_SIZE)) filterQuery.set("pageSize", pageSizeParam);
   const filterQueryString = filterQuery.toString();
   function pageHref(p: number): string {
     const qs = new URLSearchParams(filterQuery);
@@ -464,6 +477,21 @@ export default async function WaveDetailPage({
                     className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:border-brand-blue-400 focus:outline-none focus:ring-2 focus:ring-brand-blue-100"
                   >
                     {SORT_OPTIONS.map((o) => (
+                      <option key={o.value} value={o.value}>
+                        {o.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="w-28">
+                  <Label htmlFor="pageSize">Na stránku</Label>
+                  <select
+                    id="pageSize"
+                    name="pageSize"
+                    defaultValue={pageSizeParam}
+                    className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:border-brand-blue-400 focus:outline-none focus:ring-2 focus:ring-brand-blue-100"
+                  >
+                    {PAGE_SIZE_OPTIONS.map((o) => (
                       <option key={o.value} value={o.value}>
                         {o.label}
                       </option>

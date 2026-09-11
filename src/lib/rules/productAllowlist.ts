@@ -36,17 +36,32 @@ function levenshtein(a: string, b: string): number {
   return dp[a.length][b.length];
 }
 
-/** True, pokud si dvě jednotlivá slova tolerantně odpovídají (drobný překlep, jednotné/množné číslo apod.). */
+/** True, pokud si dvě jednotlivá slova tolerantně odpovídají — drobný
+ * překlep, jednotné/množné číslo, nebo zkratka/začátek slova (min. 3
+ * znaky — např. "del"/"del." odpovídá "delicious"). */
 function tokensFuzzyEqual(a: string, b: string): boolean {
   if (a === b) return true;
+  const shorter = a.length <= b.length ? a : b;
+  const longer = a.length <= b.length ? b : a;
+  if (shorter.length >= 3 && longer.startsWith(shorter)) return true;
   const threshold = a.length <= 4 || b.length <= 4 ? 1 : 2;
   return levenshtein(a, b) <= threshold;
 }
 
-/** True, pokud každé slovo z `subset` má tolerantní protějšek někde v `superset` (slovosled nehraje roli). */
+/** `superset` doplněný o spojené sousední dvojice slov bez mezery (např.
+ * "crimson"+"snow" -> "crimsonsnow") — pro případ, že shopper napíše dvě
+ * slova názvu artiklu dohromady bez mezery. */
+function withAdjacentPairs(tokens: string[]): string[] {
+  const pairs: string[] = [];
+  for (let i = 0; i < tokens.length - 1; i++) pairs.push(tokens[i] + tokens[i + 1]);
+  return tokens.concat(pairs);
+}
+
+/** True, pokud každé slovo z `subset` má tolerantní protějšek někde v `superset` (slovosled nehraje roli, i spojená slova bez mezery). */
 function tokensAreSubsetOf(subset: string[], superset: string[]): boolean {
   if (subset.length === 0) return false;
-  return subset.every((token) => superset.some((candidate) => tokensFuzzyEqual(token, candidate)));
+  const candidates = withAdjacentPairs(superset);
+  return subset.every((token) => candidates.some((candidate) => tokensFuzzyEqual(token, candidate)));
 }
 
 /**
@@ -56,6 +71,9 @@ function tokensAreSubsetOf(subset: string[], superset: string[]): boolean {
  * MÉNĚ přesně než seznam (chybí popisné slovo jako barva/velikost — např.
  * "Jablko Golden Delicious" odpovídá položce "Jablka zelená Golden
  * Delicious"), nebo naopak PŘESNĚJI (obsahuje slovo navíc, např. balení).
+ * Toleruje i zkratky/začátky slov ("Golden Del." odpovídá "Golden
+ * Delicious") a slova napsaná dohromady bez mezery ("CrimsonSnow"
+ * odpovídá "Crimson Snow").
  */
 function fuzzyMatches(candidate: string, allowed: string[]): boolean {
   const candTokens = tokenize(candidate);
