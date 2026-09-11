@@ -106,6 +106,7 @@ export default async function WaveDetailPage({
         orderBy: { updatedAt: "desc" },
         include: {
           scenario: { include: { scenarioTemplate: true } },
+          reviewer: true,
           findings: { include: { rule: true, reviewedBy: true }, orderBy: { createdAt: "asc" } },
         },
       },
@@ -312,6 +313,9 @@ export default async function WaveDetailPage({
                           <span className="font-medium">{visit.inspectionId}</span>
                           <span className="text-xs">
                             · {visit.scenario.scenarioTemplate.name} · zatím bez odpovědí
+                            {visit.reviewer && (
+                              <> · Kontrolor: {visit.reviewer.firstName} {visit.reviewer.lastName}</>
+                            )}
                           </span>
                         </div>
                       </div>
@@ -326,6 +330,11 @@ export default async function WaveDetailPage({
                         <div className="flex items-center gap-2">
                           <span className="text-sm font-semibold text-slate-900">{visit.inspectionId}</span>
                           <span className="text-xs text-slate-400">· {visit.scenario.scenarioTemplate.name}</span>
+                          {visit.reviewer && (
+                            <span className="text-xs text-slate-400">
+                              · Kontrolor: {visit.reviewer.firstName} {visit.reviewer.lastName}
+                            </span>
+                          )}
                           {openFindings.length > 0 && (
                             <Badge tone="red">
                               {openFindings.length} {openFindings.length === 1 ? "nález" : "nálezy"}

@@ -212,6 +212,13 @@ model Visit {
   lastImportBatchId String?
   lastImportBatch   ImportBatch? @relation(fields: [lastImportBatchId], references: [id])
 
+  // externí kontrolor, co tuhle návštěvu ručně prošel PŘED importem do appky
+  // (sloupce Control: Firstname/Surname/Email v datech) — NENÍ uživatel
+  // appky, viz model Reviewer. Nezaměňovat s Finding.reviewedBy (kolega
+  // z NMS, co v appce potvrdil/zamítl konkrétní nález).
+  reviewerId String?
+  reviewer   Reviewer? @relation(fields: [reviewerId], references: [id])
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -219,6 +226,24 @@ model Visit {
 
   @@unique([waveId, inspectionId])
   @@map("visits")
+}
+
+// Externí kontrolor mystery shoppingu — ručně prochází návštěvy před jejich
+// zveřejněním/importem do appky. Identifikuje se e-mailem ze sloupců
+// "Control: Firstname/Surname/Email" v importu — při prvním výskytu emailu
+// se profil založí automaticky (viz src/lib/import/importVisits.ts). Nemá
+// vlastní přihlášení do appky, jen záznam v "Databázi kontrolorů".
+model Reviewer {
+  id        String   @id @default(cuid())
+  firstName String
+  lastName  String
+  email     String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  visits Visit[]
+
+  @@map("reviewers")
 }
 
 enum RuleType {

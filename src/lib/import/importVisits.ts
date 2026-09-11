@@ -1,7 +1,25 @@
 import { prisma } from "@/lib/prisma";
 import { ExcelCsvImportSource } from "./excelCsvImportSource";
 import { hashRowData } from "./hash";
+import { readControlReviewer } from "./controlFields";
 import { runRulesForVisit } from "@/lib/rules/runRules";
+
+/**
+ * Podle Control: sloupců řádku najde existujícího kontrolora (podle
+ * e-mailu), nebo ho rovnou založí do Databáze kontrolorů. Jméno/příjmení se
+ * u už existujícího profilu nepřepisuje (drobné odchylky mezi importy ať
+ * nešustí historii) — jen se ověří, že profil vůbec existuje.
+ */
+async function resolveReviewerId(data: Record<string, unknown>): Promise<string | undefined> {
+  const control = readControlReviewer(data);
+  if (!control) return undefined;
+  const reviewer = await prisma.reviewer.upsert({
+    where: { email: control.email },
+    update: {},
+    create: control,
+  });
+  return reviewer.id;
+}
 
 export interface ImportResult {
   batchId: string;
@@ -40,6 +58,7 @@ export async function importVisitsFromFile(params: {
 
   for (const row of rows) {
     const contentHash = hashRowData(row.data);
+    const reviewerId = await resolveReviewerId(row.data);
 
     const existing = await prisma.visit.findUnique({
       where: { waveId_inspectionId: { waveId, inspectionId: row.inspectionId } },
@@ -55,6 +74,7 @@ export async function importVisitsFromFile(params: {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           data: row.data as any,
           lastImportBatchId: batch.id,
+          reviewerId,
         },
       });
       await runRulesForVisit(visit.id);
@@ -75,6 +95,7 @@ export async function importVisitsFromFile(params: {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         data: row.data as any,
         lastImportBatchId: batch.id,
+        reviewerId,
       },
     });
     await prisma.finding.deleteMany({ where: { visitId: existing.id } });
