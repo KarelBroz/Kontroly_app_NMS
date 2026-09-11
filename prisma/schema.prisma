@@ -219,6 +219,13 @@ model Visit {
   reviewerId String?
   reviewer   Reviewer? @relation(fields: [reviewerId], references: [id])
 
+  // "zmrazený" počet nálezů hned po (pře)importu — výkon externího
+  // kontrolora v okamžiku, kdy data přišla. Pozdější ruční vyřešení nálezů
+  // v appce (Finding.status) už tohle zpětně nemění — viz
+  // src/lib/stats/reviewerStats.ts. Null = zatím nespočítáno (starší
+  // návštěva odsud, nebo se kontrolor dohledal jen zpětně bez re-kontroly).
+  initialFindingsCount Int?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

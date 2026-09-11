@@ -21,6 +21,19 @@ async function resolveReviewerId(data: Record<string, unknown>): Promise<string 
   return reviewer.id;
 }
 
+/**
+ * Spustí pravidla nad návštěvou a hned nato "zmrazí" počet nálezů, co z
+ * toho vzešel — výkon (externího) kontrolora v okamžiku, kdy tahle data
+ * přišla. Použít JEN v importu — ruční "Spustit kontrolu znovu" volá
+ * runRulesForVisit přímo, bez dotyku na tenhle snapshot (viz
+ * src/lib/rules/runRules.ts).
+ */
+async function checkVisitAndFreezeCount(visitId: string): Promise<void> {
+  await runRulesForVisit(visitId);
+  const initialFindingsCount = await prisma.finding.count({ where: { visitId } });
+  await prisma.visit.update({ where: { id: visitId }, data: { initialFindingsCount } });
+}
+
 export interface ImportResult {
   batchId: string;
   rowsTotal: number;
@@ -77,7 +90,7 @@ export async function importVisitsFromFile(params: {
           reviewerId,
         },
       });
-      await runRulesForVisit(visit.id);
+      await checkVisitAndFreezeCount(visit.id);
       rowsNew++;
       continue;
     }
@@ -105,7 +118,7 @@ export async function importVisitsFromFile(params: {
       },
     });
     await prisma.finding.deleteMany({ where: { visitId: existing.id } });
-    await runRulesForVisit(existing.id);
+    await checkVisitAndFreezeCount(existing.id);
     rowsRechecked++;
   }
 
