@@ -11,6 +11,21 @@ const ALLOWED_EMAIL_DOMAIN = "@nms.eu";
 const CODE_TTL_MINUTES = 15;
 const MAX_ATTEMPTS = 5;
 
+// E-maily, kterým se účet zakládá rovnou (bez ověřovacího e-mailu s kódem) —
+// ověřování e-mailem zatím nefunguje spolehlivě. Platí vedle ručně
+// povolených adres z /users (AllowedRegistrationEmail); kdokoli jiný
+// prochází běžným ověřením kódem.
+const NO_VERIFICATION_EMAILS = new Set([
+  "petr.drab@nms.eu",
+  "iva.odstrcilova@nms.eu",
+  "simon.hlisnikovsky@nms.eu",
+  "matej.cimbalnik@nms.eu",
+  "monika.nohynkova@nms.eu",
+  "karel.broz@nms.eu",
+  "michaela.terelya@nms.eu",
+  "petra.struneckova@nms.eu",
+]);
+
 async function sendVerificationCode(email: string, name: string, code: string) {
   await sendMail({
     to: email,
@@ -54,7 +69,8 @@ export async function registerUser(formData: FormData) {
   // Předem povolený e-mail (nastaveno ručně na /users) — identitu v tomhle
   // případě ověřil člověk, co adresu přidal, takže se účet založí rovnou
   // bez ověřovacího kódu.
-  const allowed = await prisma.allowedRegistrationEmail.findUnique({ where: { email } });
+  const allowed =
+    NO_VERIFICATION_EMAILS.has(email) || (await prisma.allowedRegistrationEmail.findUnique({ where: { email } }));
   if (allowed) {
     try {
       await prisma.user.create({ data: { email, name, passwordHash } });
