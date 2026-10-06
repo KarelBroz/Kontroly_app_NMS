@@ -225,8 +225,9 @@ export async function updateScenarioSettings(
   scenarioId: string,
   formData: FormData
 ) {
-  const windowStart = String(formData.get("windowStart") || "").trim();
-  const windowEnd = String(formData.get("windowEnd") || "").trim();
+  // Jen den ("YYYY-MM-DD") — čas se nezadává, den se bere jako celých 24 hodin.
+  const windowStart = String(formData.get("windowStart") || "").trim().slice(0, 10);
+  const windowEnd = String(formData.get("windowEnd") || "").trim().slice(0, 10);
 
   // Opakující se týdenní rozvrh (mimo špička / špička apod.) — den 1-7
   // (po-ne), zaškrtnutý přes weeklyDay_<den>, s hodinovým rozmezím

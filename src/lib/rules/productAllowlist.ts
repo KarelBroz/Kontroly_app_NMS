@@ -36,11 +36,23 @@ function levenshtein(a: string, b: string): number {
   return dp[a.length][b.length];
 }
 
+/** Slovo bez koncových samohlásek (u krátkých slov beze změny) — hrubý "kmen" pro porovnání číslo/pád. */
+function stem(token: string): string {
+  return token.length >= 5 ? token.replace(/[aeiouy]+$/, "") : token;
+}
+
+/** Obecná slova, která sama o sobě artikl neurčují — samotné "kus" nebo "bio" nesmí projít jako shoda. */
+const GENERIC_TOKENS = new Set(["kus", "ks", "kg", "1kg", "2kg", "bio", "volna", "volne", "volny", "sypana", "sypane"]);
+
 /** True, pokud si dvě jednotlivá slova tolerantně odpovídají — drobný
  * překlep, jednotné/množné číslo, nebo zkratka/začátek slova (min. 3
  * znaky — např. "del"/"del." odpovídá "delicious"). */
 function tokensFuzzyEqual(a: string, b: string): boolean {
   if (a === b) return true;
+  // Jednotné/množné číslo a pády — stejný základ slova bez koncovky
+  // ("cuketa"/"cukety"/"cuketu" -> "cuket", "okurka"/"okurky" -> "okurk").
+  const stemA = stem(a);
+  if (stemA.length >= 3 && stemA === stem(b)) return true;
   const shorter = a.length <= b.length ? a : b;
   const longer = a.length <= b.length ? b : a;
   if (shorter.length >= 3 && longer.startsWith(shorter)) return true;
@@ -93,9 +105,10 @@ function fuzzyMatches(candidate: string, allowed: string[]): boolean {
 
     // 2) Odpověď je podmnožinou slov povoleného artiklu — chybí jen popisné
     // slovo (barva, "volná", velikost balení...), jádro názvu ale sedí.
-    // Vyžadujeme aspoň 2 slova, ať jedno obecné slovo (např. samotné
-    // "Jablka") neprojde jako shoda se vším.
-    if (candTokens.length >= 2 && tokensAreSubsetOf(candTokens, itemTokens)) return true;
+    // Stačí i jediné slovo ("cuketa" k "Cuketa kus"), pokud to není jen
+    // obecné slovo typu "kus"/"bio"/"volná" — to samo artikl neurčuje.
+    const hasMeaningfulToken = candTokens.some((t) => !GENERIC_TOKENS.has(t));
+    if (hasMeaningfulToken && tokensAreSubsetOf(candTokens, itemTokens)) return true;
 
     // 3) Odpověď obsahuje navíc nějaké slovo (např. hmotnost balení) oproti
     // povolenému artiklu — název artiklu je celý obsažený v odpovědi.

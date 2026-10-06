@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { FindingStatus } from "@prisma/client";
 import type { DateRange } from "./dateRange";
+import { windowEndDate } from "@/lib/rules/realDateWindow";
 
 export interface ProjectCount {
   projectId: string;
@@ -149,8 +150,8 @@ export async function getWavesNeedingAttention(withinDays = 3): Promise<WaveAtte
   for (const s of scenarios) {
     const data = s.data as { windowEnd?: string } | null;
     if (!data || !data.windowEnd) continue;
-    const end = new Date(data.windowEnd);
-    if (Number.isNaN(end.getTime())) continue;
+    const end = windowEndDate(data.windowEnd); // celý poslední den terénu (do 23:59:59)
+    if (!end) continue;
     const existing = earliestEndByWave.get(s.wave.id);
     if (!existing || end < existing.end) {
       earliestEndByWave.set(s.wave.id, {

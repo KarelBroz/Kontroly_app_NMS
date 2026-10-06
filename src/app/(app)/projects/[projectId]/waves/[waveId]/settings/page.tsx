@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/Label";
 import { Button } from "@/components/ui/Button";
 import { Trash2 } from "lucide-react";
 import { RULE_TYPE_LABELS } from "@/lib/rules/labels";
+import { buildQuestionLabels, questionText } from "@/lib/rules/questionLabels";
 import { RuleTypeField } from "@/components/rules/RuleTypeField";
 import {
   updateWaveInfo,
@@ -90,6 +91,27 @@ export default async function WaveSettingsPage({
     include: { scenarioTemplate: true, wave: true },
     orderBy: { createdAt: "desc" },
   });
+
+  // Znění otázek (název sloupce "KÓD: znění") z dat jedné návštěvy každého
+  // scénáře — scénář bez vlastních návštěv (např. nový/zatím prázdný) si vezme
+  // znění z jiného scénáře vlny, otázky bývají stejné.
+  const questionLabelsByScenario = new Map<string, Map<string, string>>();
+  await Promise.all(
+    wave.scenarios.map(async (s) => {
+      const visit = await prisma.visit.findFirst({
+        where: { scenarioId: s.id },
+        orderBy: { updatedAt: "desc" },
+        select: { data: true },
+      });
+      if (visit) questionLabelsByScenario.set(s.id, buildQuestionLabels(visit.data as Record<string, unknown>));
+    })
+  );
+  const fallbackLabels = Array.from(questionLabelsByScenario.values())[0];
+  if (fallbackLabels) {
+    for (const s of wave.scenarios) {
+      if (!questionLabelsByScenario.has(s.id)) questionLabelsByScenario.set(s.id, fallbackLabels);
+    }
+  }
 
   return (
     <div className="space-y-8">
@@ -179,8 +201,8 @@ export default async function WaveSettingsPage({
                         <Input
                           id={`windowStart-${scenario.id}`}
                           name="windowStart"
-                          type="datetime-local"
-                          defaultValue={data?.windowStart ?? ""}
+                          type="date"
+                          defaultValue={data?.windowStart?.slice(0, 10) ?? ""}
                         />
                       </div>
                       <div>
@@ -188,14 +210,15 @@ export default async function WaveSettingsPage({
                         <Input
                           id={`windowEnd-${scenario.id}`}
                           name="windowEnd"
-                          type="datetime-local"
-                          defaultValue={data?.windowEnd ?? ""}
+                          type="date"
+                          defaultValue={data?.windowEnd?.slice(0, 10) ?? ""}
                         />
                       </div>
                     </div>
                     <p className="text-xs text-slate-500">
                       Datum a čas návštěvy (sloupec "RealDate" v datech) se proti tomuhle oknu kontroluje
-                      automaticky u každého importu.
+                      automaticky u každého importu. Začátek i konec se zadávají jen jako den — bere se celých
+                      24 hodin (od 0:00 prvního dne do 23:59 posledního).
                     </p>
 
                     <label className="flex items-start gap-2 text-sm text-slate-700">
@@ -270,17 +293,26 @@ export default async function WaveSettingsPage({
                       <div>
                         <h4 className="mb-2 text-sm font-semibold text-slate-900">Pravidla kontroly</h4>
                         <div className="divide-y divide-slate-100 rounded-xl border border-slate-100">
-                          {scenario.rules.map((rule) => (
+                          {scenario.rules.map((rule) => {
+                            const labels = questionLabelsByScenario.get(scenario.id) ?? new Map<string, string>();
+                            const ruleCode = (rule.config as { questionCode?: string } | null)?.questionCode;
+                            const ruleQuestion = questionText(labels, ruleCode);
+                            return (
                             <div key={rule.id} className="flex items-center justify-between gap-3 px-3 py-2.5">
-                              <label className="flex items-center gap-2 text-sm">
+                              <label className="flex items-start gap-2 text-sm">
                                 <input
                                   type="checkbox"
                                   name={`active_${rule.id}`}
                                   defaultChecked={rule.isActive}
-                                  className="rounded border-slate-300"
+                                  className="mt-0.5 rounded border-slate-300"
                                 />
-                                <span className="font-medium text-slate-900">{rule.name}</span>
-                                <Badge tone="blue">{RULE_TYPE_LABELS[rule.type]}</Badge>
+                                <span>
+                                  <span className="font-medium text-slate-900">{rule.name}</span>{" "}
+                                  <Badge tone="blue">{RULE_TYPE_LABELS[rule.type]}</Badge>
+                                  {ruleQuestion && (
+                                    <span className="block text-xs text-slate-400">{ruleQuestion}</span>
+                                  )}
+                                </span>
                               </label>
                               <Button
                                 type="submit"
@@ -292,7 +324,8 @@ export default async function WaveSettingsPage({
                                 Smazat
                               </Button>
                             </div>
-                          ))}
+                            );
+                          })}
                         </div>
                         <p className="mt-1.5 text-xs text-slate-400">
                           Odškrtnutím pravidlo dočasně vypneš — uloží se spolu se vším ostatním tlačítkem "Uložit"

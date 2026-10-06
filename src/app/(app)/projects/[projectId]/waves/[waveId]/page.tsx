@@ -27,6 +27,9 @@ import { fixMojibakeFileName } from "@/lib/fixMojibakeFileName";
 import { importWaveFile, rerunWave, deleteImportBatch } from "./actions";
 import { buildVisitWhere } from "./visitFilters";
 import { FindingRow } from "./FindingRow";
+import { AutoSubmitSelect } from "./AutoSubmitSelect";
+import { branchName, shopperName } from "@/lib/visits/visitInfo";
+import { buildQuestionLabels, formatQuestionLine, secondaryQuestionCode } from "@/lib/rules/questionLabels";
 
 const DEFAULT_PAGE_SIZE = 50;
 const PAGE_SIZE_OPTIONS = [
@@ -122,6 +125,37 @@ function findingQuestionCode(finding: {
     return details?.field?.split(":")[0]?.trim() || null;
   }
   return null;
+}
+
+/** "Kontrolor: Jméno Příjmení | Shopper: Jméno Příjmení" — části, které data neznají, se vynechají. */
+function visitPeopleLabel(
+  reviewer: { firstName: string; lastName: string } | null,
+  data: Record<string, unknown>
+): string | null {
+  const parts: string[] = [];
+  if (reviewer) parts.push(`Kontrolor: ${reviewer.firstName} ${reviewer.lastName}`.trim());
+  const shopper = shopperName(data);
+  if (shopper) parts.push(`Shopper: ${shopper}`);
+  return parts.length > 0 ? parts.join(" | ") : null;
+}
+
+/** Řádky "KÓD – znění otázky" pod textem nálezu (hlavní otázka pravidla/překlepu + případná navazující). */
+function findingQuestionLines(
+  finding: {
+    rule: { config: unknown } | null;
+    systemCheck: SystemCheckType | null;
+    details: unknown;
+  },
+  labels: Map<string, string>
+): string[] {
+  const lines: string[] = [];
+  const main = findingQuestionCode(finding);
+  if (main) lines.push(formatQuestionLine(labels, main));
+  const secondary = finding.rule ? secondaryQuestionCode(finding.rule.config) : null;
+  if (secondary && secondary.toLowerCase() !== main?.toLowerCase()) {
+    lines.push(formatQuestionLine(labels, secondary));
+  }
+  return lines;
 }
 
 /** Iniciály kontrolora (jméno + příjmení -> 2 písmena pod sebou), kdo nález naposledy ručně vyhodnotil. */
@@ -443,95 +477,53 @@ export default async function WaveDetailPage({
               <form className="flex flex-wrap items-end gap-3" method="GET">
                 <div className="w-40">
                   <Label htmlFor="scenario">Scénář</Label>
-                  <select
+                  <AutoSubmitSelect
                     id="scenario"
                     name="scenario"
                     defaultValue={searchParams.scenario ?? "all"}
-                    className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:border-brand-blue-400 focus:outline-none focus:ring-2 focus:ring-brand-blue-100"
-                  >
-                    <option value="all">Všechny</option>
-                    {wave.scenarios.map((s) => (
-                      <option key={s.id} value={s.id}>
-                        {s.scenarioTemplate.name}
-                      </option>
-                    ))}
-                  </select>
+                    options={[
+                      { value: "all", label: "Všechny" },
+                      ...wave.scenarios.map((s) => ({ value: s.id, label: s.scenarioTemplate.name })),
+                    ]}
+                  />
                 </div>
                 <div className="w-36">
                   <Label htmlFor="status">Stav</Label>
-                  <select
-                    id="status"
-                    name="status"
-                    defaultValue={statusFilter}
-                    className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:border-brand-blue-400 focus:outline-none focus:ring-2 focus:ring-brand-blue-100"
-                  >
-                    {STATUS_OPTIONS.map((o) => (
-                      <option key={o.value} value={o.value}>
-                        {o.label}
-                      </option>
-                    ))}
-                  </select>
+                  <AutoSubmitSelect id="status" name="status" defaultValue={statusFilter} options={STATUS_OPTIONS} />
                 </div>
                 <div className="w-44">
                   <Label htmlFor="reviewer">Kontrolor</Label>
-                  <select
+                  <AutoSubmitSelect
                     id="reviewer"
                     name="reviewer"
                     defaultValue={searchParams.reviewer ?? "all"}
-                    className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:border-brand-blue-400 focus:outline-none focus:ring-2 focus:ring-brand-blue-100"
-                  >
-                    <option value="all">Všichni</option>
-                    {reviewerOptions.map((r) => (
-                      <option key={r.id} value={r.id}>
-                        {r.firstName} {r.lastName}
-                      </option>
-                    ))}
-                  </select>
+                    options={[
+                      { value: "all", label: "Všichni" },
+                      ...reviewerOptions.map((r) => ({ value: r.id, label: `${r.firstName} ${r.lastName}` })),
+                    ]}
+                  />
                 </div>
                 <div className="w-48">
                   <Label htmlFor="sort">Řadit</Label>
-                  <select
-                    id="sort"
-                    name="sort"
-                    defaultValue={sortMode}
-                    className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:border-brand-blue-400 focus:outline-none focus:ring-2 focus:ring-brand-blue-100"
-                  >
-                    {SORT_OPTIONS.map((o) => (
-                      <option key={o.value} value={o.value}>
-                        {o.label}
-                      </option>
-                    ))}
-                  </select>
+                  <AutoSubmitSelect id="sort" name="sort" defaultValue={sortMode} options={SORT_OPTIONS} />
                 </div>
                 <div className="w-28">
                   <Label htmlFor="pageSize">Na stránku</Label>
-                  <select
+                  <AutoSubmitSelect
                     id="pageSize"
                     name="pageSize"
                     defaultValue={pageSizeParam}
-                    className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:border-brand-blue-400 focus:outline-none focus:ring-2 focus:ring-brand-blue-100"
-                  >
-                    {PAGE_SIZE_OPTIONS.map((o) => (
-                      <option key={o.value} value={o.value}>
-                        {o.label}
-                      </option>
-                    ))}
-                  </select>
+                    options={PAGE_SIZE_OPTIONS}
+                  />
                 </div>
                 <div className="w-48">
                   <Label htmlFor="findingType">Typ chyby</Label>
-                  <select
+                  <AutoSubmitSelect
                     id="findingType"
                     name="findingType"
                     defaultValue={searchParams.findingType ?? "all"}
-                    className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-900 focus:border-brand-blue-400 focus:outline-none focus:ring-2 focus:ring-brand-blue-100"
-                  >
-                    {FINDING_TYPE_OPTIONS.map((o) => (
-                      <option key={o.value} value={o.value}>
-                        {o.label}
-                      </option>
-                    ))}
-                  </select>
+                    options={FINDING_TYPE_OPTIONS}
+                  />
                 </div>
                 <div className="min-w-[160px] flex-1">
                   <Label htmlFor="q">Hledat ID kontroly</Label>
@@ -577,7 +569,12 @@ export default async function WaveDetailPage({
             ) : (
               <div className="divide-y divide-slate-100">
                 {orderedVisits.map((visit) => {
-                  const isEmpty = isVisitDataEmpty(visit.data as Record<string, unknown>);
+                  const visitData = visit.data as Record<string, unknown>;
+                  const isEmpty = isVisitDataEmpty(visitData);
+                  const branch = branchName(visitData);
+                  const visitTitle = branch ? `${visit.inspectionId} - ${branch}` : visit.inspectionId;
+                  const people = visitPeopleLabel(visit.reviewer, visitData);
+                  const questionLabels = buildQuestionLabels(visitData);
 
                   if (isEmpty) {
                     return (
@@ -586,12 +583,10 @@ export default async function WaveDetailPage({
                         className="flex flex-wrap items-center justify-between gap-3 px-6 py-3 text-slate-400"
                       >
                         <div className="flex items-center gap-2 text-sm">
-                          <span className="font-medium">{visit.inspectionId}</span>
+                          <span className="font-medium">{visitTitle}</span>
                           <span className="text-xs">
                             · {visit.scenario.scenarioTemplate.name} · zatím bez odpovědí
-                            {visit.reviewer && (
-                              <> · Kontrolor: {visit.reviewer.firstName} {visit.reviewer.lastName}</>
-                            )}
+                            {people && <> · {people}</>}
                           </span>
                         </div>
                       </div>
@@ -604,13 +599,9 @@ export default async function WaveDetailPage({
                     <div key={visit.id} className="px-6 py-4">
                       <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
                         <div className="flex items-center gap-2">
-                          <span className="text-sm font-semibold text-slate-900">{visit.inspectionId}</span>
+                          <span className="text-sm font-semibold text-slate-900">{visitTitle}</span>
                           <span className="text-xs text-slate-400">· {visit.scenario.scenarioTemplate.name}</span>
-                          {visit.reviewer && (
-                            <span className="text-xs text-slate-400">
-                              · Kontrolor: {visit.reviewer.firstName} {visit.reviewer.lastName}
-                            </span>
-                          )}
+                          {people && <span className="text-xs text-slate-400">· {people}</span>}
                           {openFindings.length > 0 && (
                             <Badge tone="red">
                               {openFindings.length} {openFindings.length === 1 ? "nález" : "nálezy"}
@@ -632,6 +623,10 @@ export default async function WaveDetailPage({
                                 ? (finding.details as GrammarDetails | null)
                                 : null;
                             const isOpen = finding.status === FindingStatus.OPEN;
+                            // U překlepů je celé znění otázky už vidět výš (název sloupce), tam se neopakuje
+                            const questionLines: string[] = grammarDetails?.context
+                              ? []
+                              : findingQuestionLines(finding, questionLabels);
                             const navigatorHref = wave.project.navigatorCode
                               ? buildNavigatorUrl(
                                   visit.inspectionId,
@@ -667,6 +662,11 @@ export default async function WaveDetailPage({
                                 ) : (
                                   <p className="text-sm text-slate-700">{finding.message}</p>
                                 )}
+                                {questionLines.map((line) => (
+                                  <p key={line} className="mt-0.5 text-xs text-slate-400">
+                                    {line}
+                                  </p>
+                                ))}
                                 <div className="mt-1.5">
                                   <Badge tone={findingTypeTone(finding)} className="font-semibold">
                                     {findingTypeLabel(finding)}

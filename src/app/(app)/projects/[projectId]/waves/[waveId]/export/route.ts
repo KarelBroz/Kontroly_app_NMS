@@ -6,6 +6,8 @@ import { prisma } from "@/lib/prisma";
 import { RULE_TYPE_LABELS, SYSTEM_CHECK_LABELS } from "@/lib/rules/labels";
 import { SystemCheckType } from "@prisma/client";
 import { buildVisitWhere } from "../visitFilters";
+import { branchName, shopperName } from "@/lib/visits/visitInfo";
+import { buildQuestionLabels, questionText } from "@/lib/rules/questionLabels";
 
 const STATUS_LABELS: Record<string, string> = {
   OPEN: "Otevřeno",
@@ -56,6 +58,10 @@ export async function GET(request: NextRequest, context: { params: { projectId: 
   const rows: Array<Record<string, string>> = [];
 
   for (const visit of visits) {
+    const visitData = visit.data as Record<string, unknown>;
+    const questionLabels = buildQuestionLabels(visitData);
+    const branch = branchName(visitData);
+    const shopper = shopperName(visitData);
     for (const finding of visit.findings) {
       let questionCode = "";
       if (finding.rule) {
@@ -79,9 +85,12 @@ export async function GET(request: NextRequest, context: { params: { projectId: 
 
       const row: Record<string, string> = {};
       row["ID kontroly"] = visit.inspectionId;
+      row["Pobocka"] = branch;
       row["Scenar"] = visit.scenario.scenarioTemplate.name;
       row["Kontrolor"] = reviewerName;
+      row["Shopper"] = shopper;
       row["Kod otazky"] = questionCode;
+      row["Nazev otazky"] = questionText(questionLabels, questionCode) ?? "";
       row["Typ nalezu"] = typeLabel;
       row["Zprava"] = finding.message;
       row["Zavaznost"] = finding.severity;

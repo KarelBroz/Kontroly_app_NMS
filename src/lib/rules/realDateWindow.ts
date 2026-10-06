@@ -22,6 +22,32 @@ export type RealDateIssue =
 
 const REAL_DATE_COLUMN = "RealDate";
 
+/** Samotný den ("YYYY-MM-DD") z uložené hodnoty — starší záznamy mají i čas ("YYYY-MM-DDTHH:mm"), ten se zahazuje. */
+function dayPart(value: string | undefined): string | null {
+  const match = value?.match(/^(\d{4}-\d{2}-\d{2})/);
+  return match ? match[1] : null;
+}
+
+/**
+ * Začátek/konec terénu se zadává jen jako DEN — bere se jako celých 24 hodin
+ * (od 0:00:00 prvního dne do 23:59:59 posledního). Čas se čte jako UTC
+ * složky, stejně jako RealDate (viz excelSerialToDate: Date reprezentuje
+ * "nástěnný" čas z buňky).
+ */
+export function windowStartDate(value: string | undefined): Date | null {
+  const day = dayPart(value);
+  return day ? new Date(`${day}T00:00:00.000Z`) : null;
+}
+
+export function windowEndDate(value: string | undefined): Date | null {
+  const day = dayPart(value);
+  return day ? new Date(`${day}T23:59:59.999Z`) : null;
+}
+
+function formatDay(date: Date): string {
+  return date.toLocaleDateString("cs-CZ", { timeZone: "UTC" });
+}
+
 /** Excelí sériové datum (den 0 = 30. 12. 1899, kvůli chybě s rokem 1900 jako přestupným) na JS Date. */
 function excelSerialToDate(serial: number): Date {
   const utcDays = Math.floor(serial - 25569);
@@ -91,8 +117,8 @@ export function checkRealDateWindow(
     return { reason: "invalid", raw: String(raw) };
   }
 
-  const start = scenario.windowStart ? new Date(scenario.windowStart) : null;
-  const end = scenario.windowEnd ? new Date(scenario.windowEnd) : null;
+  const start = windowStartDate(scenario.windowStart);
+  const end = windowEndDate(scenario.windowEnd);
   const outOfRange = (start !== null && visitDate < start) || (end !== null && visitDate > end);
 
   if (outOfRange) {
@@ -124,7 +150,9 @@ export function buildRealDateMessage(issue: RealDateIssue, scenario: ScenarioDat
   if (issue.reason === "outside_weekly_window") {
     return `Datum návštěvy (${new Date(issue.parsed).toLocaleString("cs-CZ")}) nespadá do žádného z povolených termínů: ${formatWeeklyWindows(issue.windows)}.`;
   }
-  const from = scenario?.windowStart ? ` od ${new Date(scenario.windowStart).toLocaleString("cs-CZ")}` : "";
-  const to = scenario?.windowEnd ? ` do ${new Date(scenario.windowEnd).toLocaleString("cs-CZ")}` : "";
+  const startDate = windowStartDate(scenario?.windowStart);
+  const endDate = windowEndDate(scenario?.windowEnd);
+  const from = startDate ? ` od ${formatDay(startDate)}` : "";
+  const to = endDate ? ` do ${formatDay(endDate)}` : "";
   return `Datum návštěvy (${new Date(issue.parsed).toLocaleString("cs-CZ")}) je mimo okno terénu${from}${to}.`;
 }
