@@ -6,8 +6,11 @@ import { Textarea } from "@/components/ui/Textarea";
 import { Button } from "@/components/ui/Button";
 import { ImagePlus } from "lucide-react";
 import { createProject } from "../actions";
+import { requireUser } from "@/lib/auth/session";
 
-export default function NewProjectPage({ searchParams }: { searchParams: { error?: string } }) {
+export default async function NewProjectPage({ searchParams }: { searchParams: { error?: string } }) {
+  await requireUser();
+
   return (
     <div className="space-y-8">
       <div>

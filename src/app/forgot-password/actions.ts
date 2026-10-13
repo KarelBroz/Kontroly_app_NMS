@@ -5,8 +5,11 @@ import { redirect } from "next/navigation";
 import { generateResetToken } from "@/lib/auth/tokens";
 import { sendMail } from "@/lib/mail/sendMail";
 import { getBaseUrl } from "@/lib/baseUrl";
+import { consumeRateLimit, currentIp, HOUR } from "@/lib/auth/rateLimit";
 
 const RESET_TOKEN_TTL_MINUTES = 60;
+const RESET_MAX_PER_EMAIL_PER_HOUR = 3;
+const RESET_MAX_PER_IP_PER_HOUR = 10;
 
 export async function requestPasswordReset(formData: FormData) {
   const email = String(formData.get("email") || "")
@@ -17,7 +20,13 @@ export async function requestPasswordReset(formData: FormData) {
     redirect(`/forgot-password?error=${encodeURIComponent("Zadej e-mailovou adresu.")}`);
   }
 
-  const user = await prisma.user.findUnique({ where: { email } });
+  // Při překročení limitu se e-mail tiše neodešle, ale odpověď je stejná
+  // jako jindy — jinak by se dalo zkoušet, které účty existují.
+  const allowed =
+    (await consumeRateLimit(`reset:ip:${currentIp()}`, RESET_MAX_PER_IP_PER_HOUR, HOUR)) &&
+    (await consumeRateLimit(`reset:email:${email}`, RESET_MAX_PER_EMAIL_PER_HOUR, HOUR));
+
+  const user = allowed ? await prisma.user.findUnique({ where: { email } }) : null;
 
   // Ze security důvodů zobrazíme stejnou "odesláno" zprávu, i když účet s daným e-mailem neexistuje.
   if (user) {

@@ -8,6 +8,7 @@ import { Textarea } from "@/components/ui/Textarea";
 import { Button } from "@/components/ui/Button";
 import { ImagePlus } from "lucide-react";
 import { updateProject } from "../actions";
+import { requireUser } from "@/lib/auth/session";
 
 export default async function ProjectSettingsPage({
   params,
@@ -16,6 +17,8 @@ export default async function ProjectSettingsPage({
   params: { projectId: string };
   searchParams: { error?: string };
 }) {
+  await requireUser();
+
   const project = await prisma.project.findUnique({ where: { id: params.projectId } });
 
   if (!project) notFound();

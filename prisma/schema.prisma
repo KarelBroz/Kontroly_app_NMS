@@ -7,13 +7,22 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// Uživatel appky. Zatím bez rolí — všichni přihlášení mají stejná práva.
-// Připraveno na přidání `role` polem bez velké přestavby.
+enum UserRole {
+  USER // běžný uživatel — projekty, vlny, importy, pravidla, nálezy
+  ADMIN // navíc správa uživatelů (povolené e-maily, role, odebrání přístupu) a sběr chyb
+}
+
+// Uživatel appky.
 model User {
   id           String   @id @default(cuid())
   email        String   @unique
   name         String?
   passwordHash String
+  role         UserRole @default(USER)
+  // Zvýšením se okamžitě zneplatní všechna existující přihlášení uživatele
+  // (JWT nese verzi z doby přihlášení, viz src/lib/auth/session.ts) —
+  // při změně hesla, změně role nebo odebrání přístupu.
+  sessionVersion Int    @default(0)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -55,10 +64,10 @@ model PendingRegistration {
   @@map("pending_registrations")
 }
 
-// Ručně (v appce, na /users) předem povolené e-maily — kdo je na seznamu,
-// založí si účet rovnou bez ověřovacího kódu (identitu v tomhle případě
-// ověřuje člověk, co adresu přidal, ne appka přes e-mail). Zůstává jako
-// rychlá cesta i po zprovoznění e-mailů, ne jen dočasná náhrada.
+// Ručně (v appce, na /users, jen admin) předem povolené e-maily — kdo je na
+// seznamu, založí si účet rovnou bez ověřovacího kódu (identitu v tomhle
+// případě ověřuje admin, co adresu přidal, ne appka přes e-mail). Záznam je
+// jednorázový — po založení účtu se smaže.
 model AllowedRegistrationEmail {
   id        String   @id @default(cuid())
   email     String   @unique
@@ -377,4 +386,16 @@ model BugReport {
   updatedAt DateTime @updatedAt
 
   @@map("bug_reports")
+}
+
+// Záznamy pro omezení počtu pokusů (přihlášení, registrace, obnova hesla) —
+// viz src/lib/auth/rateLimit.ts. Klíč je např. "login:email:jan@nms.eu"
+// nebo "login:ip:1.2.3.4". Staré záznamy se průběžně mažou.
+model RateLimitHit {
+  id        String   @id @default(cuid())
+  key       String
+  createdAt DateTime @default(now())
+
+  @@index([key, createdAt])
+  @@map("rate_limit_hits")
 }

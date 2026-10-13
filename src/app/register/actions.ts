@@ -6,25 +6,18 @@ import bcrypt from "bcryptjs";
 import { redirect } from "next/navigation";
 import { generateSixDigitCode, hashToken } from "@/lib/auth/tokens";
 import { sendMail } from "@/lib/mail/sendMail";
+import { consumeRateLimit, currentIp, HOUR } from "@/lib/auth/rateLimit";
 
 const ALLOWED_EMAIL_DOMAIN = "@nms.eu";
 const CODE_TTL_MINUTES = 15;
 const MAX_ATTEMPTS = 5;
 
-// E-maily, kterým se účet zakládá rovnou (bez ověřovacího e-mailu s kódem) —
-// ověřování e-mailem zatím nefunguje spolehlivě. Platí vedle ručně
-// povolených adres z /users (AllowedRegistrationEmail); kdokoli jiný
-// prochází běžným ověřením kódem.
-const NO_VERIFICATION_EMAILS = new Set([
-  "petr.drab@nms.eu",
-  "iva.odstrcilova@nms.eu",
-  "simon.hlisnikovsky@nms.eu",
-  "matej.cimbalnik@nms.eu",
-  "monika.nohynkova@nms.eu",
-  "karel.broz@nms.eu",
-  "michaela.terelya@nms.eu",
-  "petra.struneckova@nms.eu",
-]);
+// Limity proti zahlcení (každý pokus může poslat e-mail s kódem).
+const REGISTER_MAX_PER_IP_PER_HOUR = 10;
+const REGISTER_MAX_PER_EMAIL_PER_HOUR = 3;
+const RESEND_MAX_PER_EMAIL_PER_HOUR = 3;
+
+const RATE_LIMITED_ERROR = "Příliš mnoho pokusů o registraci. Zkus to prosím znovu za hodinu.";
 
 async function sendVerificationCode(email: string, name: string, code: string) {
   await sendMail({
@@ -46,7 +39,7 @@ export async function registerUser(formData: FormData) {
   const lastName = String(formData.get("lastName") || "").trim();
   const password = String(formData.get("password") || "");
 
-  if (!email.endsWith(ALLOWED_EMAIL_DOMAIN)) {
+  if (!/^[^\s@]+@nms\.eu$/.test(email)) {
     redirect(
       `/register?error=${encodeURIComponent(
         `Registrace je možná pouze s NMS e-mailovou adresou (${ALLOWED_EMAIL_DOMAIN}).`
@@ -58,6 +51,13 @@ export async function registerUser(formData: FormData) {
     redirect(`/register?error=${encodeURIComponent("Vyplň jméno, příjmení a heslo (min. 8 znaků).")}`);
   }
 
+  if (
+    !(await consumeRateLimit(`register:ip:${currentIp()}`, REGISTER_MAX_PER_IP_PER_HOUR, HOUR)) ||
+    !(await consumeRateLimit(`register:email:${email}`, REGISTER_MAX_PER_EMAIL_PER_HOUR, HOUR))
+  ) {
+    redirect(`/register?error=${encodeURIComponent(RATE_LIMITED_ERROR)}`);
+  }
+
   const existing = await prisma.user.findUnique({ where: { email } });
   if (existing) {
     redirect(`/register?error=${encodeURIComponent("Uživatel s tímto e-mailem už existuje.")}`);
@@ -66,14 +66,16 @@ export async function registerUser(formData: FormData) {
   const passwordHash = await bcrypt.hash(password, 10);
   const name = `${firstName} ${lastName}`.trim();
 
-  // Předem povolený e-mail (nastaveno ručně na /users) — identitu v tomhle
-  // případě ověřil člověk, co adresu přidal, takže se účet založí rovnou
-  // bez ověřovacího kódu.
-  const allowed =
-    NO_VERIFICATION_EMAILS.has(email) || (await prisma.allowedRegistrationEmail.findUnique({ where: { email } }));
+  // Předem povolený e-mail (nastavuje admin na /users) — identitu v tomhle
+  // případě ověřil admin, co adresu přidal, takže se účet založí rovnou
+  // bez ověřovacího kódu. Povolení je jednorázové.
+  const allowed = await prisma.allowedRegistrationEmail.findUnique({ where: { email } });
   if (allowed) {
     try {
-      await prisma.user.create({ data: { email, name, passwordHash } });
+      await prisma.$transaction([
+        prisma.user.create({ data: { email, name, passwordHash } }),
+        prisma.allowedRegistrationEmail.delete({ where: { id: allowed.id } }),
+      ]);
     } catch (error) {
       if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
         redirect(`/register?error=${encodeURIComponent("Uživatel s tímto e-mailem už existuje.")}`);
@@ -176,6 +178,14 @@ export async function resendRegistrationCode(formData: FormData) {
   const email = String(formData.get("email") || "")
     .toLowerCase()
     .trim();
+
+  if (!(await consumeRateLimit(`register:resend:${email}`, RESEND_MAX_PER_EMAIL_PER_HOUR, HOUR))) {
+    redirect(
+      `/register/verify?email=${encodeURIComponent(email)}&error=${encodeURIComponent(
+        "Kód už byl odeslán několikrát. Zkus to prosím znovu za hodinu."
+      )}`
+    );
+  }
 
   const pending = await prisma.pendingRegistration.findUnique({ where: { email } });
   if (!pending) {

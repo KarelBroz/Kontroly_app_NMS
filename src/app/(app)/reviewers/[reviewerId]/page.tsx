@@ -7,6 +7,7 @@ import type { BadgeTone } from "@/components/ui/Badge";
 import { UserCheck, ClipboardList, AlertCircle, Trophy } from "lucide-react";
 import { getReviewerPerformance } from "@/lib/stats/reviewerStats";
 import { getLastActiveWaveIdsByProject, projectQuickLink } from "@/lib/waves/lastActiveWave";
+import { requireUser } from "@/lib/auth/session";
 
 function successTone(rate: number): BadgeTone {
   if (rate >= 80) return "green";
@@ -23,6 +24,8 @@ function formatAvg(avg: number | null): string {
 }
 
 export default async function ReviewerDetailPage({ params }: { params: { reviewerId: string } }) {
+  await requireUser();
+
   const reviewer = await prisma.reviewer.findUnique({ where: { id: params.reviewerId } });
   if (!reviewer) notFound();
 

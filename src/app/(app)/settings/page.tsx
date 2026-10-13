@@ -1,9 +1,8 @@
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { requireUser } from "@/lib/auth/session";
 import { Card } from "@/components/ui/Card";
 
 export default async function SettingsPage() {
-  const session = await getServerSession(authOptions);
+  const user = await requireUser();
 
   return (
     <div className="space-y-8">
@@ -16,11 +15,11 @@ export default async function SettingsPage() {
         <dl className="space-y-3 text-sm">
           <div className="flex justify-between">
             <dt className="text-slate-500">Jméno</dt>
-            <dd className="font-medium text-slate-900">{session?.user?.name ?? "—"}</dd>
+            <dd className="font-medium text-slate-900">{user.name ?? "—"}</dd>
           </div>
           <div className="flex justify-between">
             <dt className="text-slate-500">E-mail</dt>
-            <dd className="font-medium text-slate-900">{session?.user?.email}</dd>
+            <dd className="font-medium text-slate-900">{user.email}</dd>
           </div>
         </dl>
       </Card>

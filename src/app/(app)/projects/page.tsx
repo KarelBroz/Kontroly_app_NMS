@@ -6,8 +6,11 @@ import { Button } from "@/components/ui/Button";
 import { FolderKanban, AlertTriangle, Plus } from "lucide-react";
 import { isProjectCodeStale, suggestedProjectCode } from "@/lib/projectCode";
 import { getLastActiveWaveIdsByProject, projectQuickLink } from "@/lib/waves/lastActiveWave";
+import { requireUser } from "@/lib/auth/session";
 
 export default async function ProjectsPage() {
+  await requireUser();
+
   const projects = await prisma.project.findMany({
     orderBy: { updatedAt: "desc" },
     include: { waves: { select: { id: true } } },

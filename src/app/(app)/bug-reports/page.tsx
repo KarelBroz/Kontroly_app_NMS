@@ -7,6 +7,7 @@ import { Clock, CheckCircle2, XCircle, ExternalLink } from "lucide-react";
 import { BugReportStatus } from "@prisma/client";
 import { cn } from "@/lib/utils";
 import { updateBugReportStatus } from "./actions";
+import { requireAdmin } from "@/lib/auth/session";
 
 const STATUS_LABEL: Record<BugReportStatus, string> = {
   [BugReportStatus.PENDING]: "Čeká na vyhodnocení",
@@ -28,6 +29,8 @@ const STATUS_ORDER: Record<BugReportStatus, number> = {
 };
 
 export default async function BugReportsPage() {
+  await requireAdmin();
+
   const reports = await prisma.bugReport.findMany({
     include: { user: true },
     orderBy: { createdAt: "desc" },

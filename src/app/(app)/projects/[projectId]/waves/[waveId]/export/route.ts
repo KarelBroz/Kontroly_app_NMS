@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getServerSession } from "next-auth";
 import * as XLSX from "xlsx";
-import { authOptions } from "@/lib/auth";
+import { getCurrentUser } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
 import { RULE_TYPE_LABELS, SYSTEM_CHECK_LABELS } from "@/lib/rules/labels";
 import { SystemCheckType } from "@prisma/client";
@@ -21,8 +20,8 @@ const STATUS_LABELS: Record<string, string> = {
  * nastavené stránka vlny.
  */
 export async function GET(request: NextRequest, context: { params: { projectId: string; waveId: string } }) {
-  const session = await getServerSession(authOptions);
-  if (!session) {
+  const user = await getCurrentUser();
+  if (!user) {
     return new NextResponse("Nepřihlášeno", { status: 401 });
   }
 

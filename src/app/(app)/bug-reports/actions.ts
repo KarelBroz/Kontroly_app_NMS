@@ -1,11 +1,10 @@
 "use server";
 
+import { requireAdmin, requireUser } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
 import { BugReportStatus } from "@prisma/client";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 
 /**
  * Nahlásí chybu z libovolné stránky appky (kulatá vlaječka vpravo dole,
@@ -13,8 +12,11 @@ import { authOptions } from "@/lib/auth";
  * uživatel hlásil (pageUrl), se stejným "?saved=" toast vzorem jako jinde.
  */
 export async function createBugReport(formData: FormData) {
-  const session = await getServerSession(authOptions);
-  const pageUrl = String(formData.get("pageUrl") || "/").trim() || "/";
+  const user = await requireUser();
+  const rawPageUrl = String(formData.get("pageUrl") || "/").trim();
+  // jen cesta uvnitř appky — "//jiny-web.cz" nebo "https://..." by po
+  // nahlášení přesměrovalo ven
+  const pageUrl = /^\/(?![\/\\])/.test(rawPageUrl) ? rawPageUrl : "/";
   const message = String(formData.get("message") || "").trim();
 
   // textarea má "required", takhle se sem dá dostat jen obejitím formuláře -
@@ -24,7 +26,7 @@ export async function createBugReport(formData: FormData) {
   }
 
   await prisma.bugReport.create({
-    data: { userId: session?.user?.id, pageUrl, message },
+    data: { userId: user.id, pageUrl, message },
   });
 
   revalidatePath("/bug-reports");
@@ -32,6 +34,7 @@ export async function createBugReport(formData: FormData) {
 }
 
 export async function updateBugReportStatus(bugReportId: string, status: BugReportStatus, _formData: FormData) {
+  await requireAdmin();
   await prisma.bugReport.update({ where: { id: bugReportId }, data: { status } });
   revalidatePath("/bug-reports");
   redirect(`/bug-reports?saved=${encodeURIComponent("Stav aktualizován")}`);

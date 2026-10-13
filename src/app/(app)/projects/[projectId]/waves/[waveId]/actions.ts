@@ -1,11 +1,10 @@
 "use server";
 
+import { requireUser } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
 import { Prisma, RuleType, FindingStatus } from "@prisma/client";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
 import { importVisitsFromFile } from "@/lib/import/importVisits";
 import { rerunRulesForWave, rerunRulesForScenario } from "@/lib/rules/runRules";
 import { RULE_TYPE_LABELS } from "@/lib/rules/labels";
@@ -22,7 +21,7 @@ function settingsPath(projectId: string, waveId: string) {
 // ---------- Hlavní stránka vlny: import dat a nálezy ----------
 
 export async function importWaveFile(projectId: string, waveId: string, formData: FormData) {
-  const session = await getServerSession(authOptions);
+  const user = await requireUser();
   const scenarioId = String(formData.get("scenarioId") || "").trim();
   const file = formData.get("file");
 
@@ -44,7 +43,7 @@ export async function importWaveFile(projectId: string, waveId: string, formData
     scenarioId,
     fileName: fixMojibakeFileName((file as File).name),
     buffer,
-    uploadedById: session?.user?.id,
+    uploadedById: user.id,
   });
 
   revalidatePath(wavePath(projectId, waveId));
@@ -61,6 +60,7 @@ export async function importWaveFile(projectId: string, waveId: string, formData
  * dávky").
  */
 export async function deleteImportBatch(projectId: string, waveId: string, batchId: string, _formData: FormData) {
+  await requireUser();
   await prisma.visit.deleteMany({ where: { lastImportBatchId: batchId } });
   await prisma.importBatch.delete({ where: { id: batchId } });
   revalidatePath(wavePath(projectId, waveId));
@@ -68,6 +68,7 @@ export async function deleteImportBatch(projectId: string, waveId: string, batch
 }
 
 export async function rerunWave(projectId: string, waveId: string) {
+  await requireUser();
   await rerunRulesForWave(waveId);
   revalidatePath(wavePath(projectId, waveId));
   redirect(`${wavePath(projectId, waveId)}?saved=${encodeURIComponent("Zkontrolováno")}`);
@@ -91,13 +92,13 @@ export async function updateFindingStatus(
   findingId: string,
   status: FindingStatus
 ) {
-  const session = await getServerSession(authOptions);
+  const user = await requireUser();
   await prisma.finding.update({
     where: { id: findingId },
     data: {
       status,
       resolvedAt: status === FindingStatus.OPEN ? null : new Date(),
-      reviewedById: session?.user?.id,
+      reviewedById: user.id,
     },
   });
 }
@@ -105,6 +106,7 @@ export async function updateFindingStatus(
 // ---------- Nastavení vlny: základní údaje ----------
 
 export async function updateWaveInfo(projectId: string, waveId: string, formData: FormData) {
+  await requireUser();
   const name = String(formData.get("name") || "").trim();
   const yearRaw = String(formData.get("year") || "").trim();
   const months = formData
@@ -149,6 +151,7 @@ async function copyRulesToScenario(sourceScenarioId: string, targetScenarioId: s
 }
 
 export async function addScenario(projectId: string, waveId: string, formData: FormData) {
+  await requireUser();
   const scenarioTemplateId = String(formData.get("scenarioTemplateId") || "").trim();
   const copyFromScenarioId = String(formData.get("copyFromScenarioId") || "").trim();
 
@@ -178,6 +181,7 @@ export async function addScenario(projectId: string, waveId: string, formData: F
 }
 
 export async function createTemplateAndAddScenario(projectId: string, waveId: string, formData: FormData) {
+  await requireUser();
   const templateName = String(formData.get("templateName") || "").trim();
   const copyFromScenarioId = String(formData.get("copyFromScenarioId") || "").trim();
 
@@ -225,6 +229,7 @@ export async function updateScenarioSettings(
   scenarioId: string,
   formData: FormData
 ) {
+  await requireUser();
   // Jen den ("YYYY-MM-DD") — čas se nezadává, den se bere jako celých 24 hodin.
   const windowStart = String(formData.get("windowStart") || "").trim().slice(0, 10);
   const windowEnd = String(formData.get("windowEnd") || "").trim().slice(0, 10);
@@ -278,6 +283,7 @@ export async function updateScenarioSettings(
 }
 
 export async function removeScenario(projectId: string, waveId: string, scenarioId: string) {
+  await requireUser();
   const visitCount = await prisma.visit.count({ where: { scenarioId } });
   if (visitCount > 0) {
     redirect(
@@ -384,6 +390,7 @@ function buildRuleConfig(
 }
 
 export async function createRule(projectId: string, waveId: string, scenarioId: string, formData: FormData) {
+  await requireUser();
   const questionCode = String(formData.get("questionCode") || "").trim();
   const typeRaw = String(formData.get("type") || "");
   const allowedValueRaw = String(formData.get("allowedValue") || "").trim();
@@ -434,6 +441,7 @@ export async function createRule(projectId: string, waveId: string, scenarioId: 
  * rovnou nahradit.
  */
 export async function bulkCreateRules(projectId: string, waveId: string, scenarioId: string, formData: FormData) {
+  await requireUser();
   const raw = String(formData.get("bulkRules") || "").trim();
   if (!raw) {
     redirect(`${settingsPath(projectId, waveId)}?error=${encodeURIComponent("Vlož alespoň jeden řádek pravidla.")}`);
@@ -523,6 +531,7 @@ export async function bulkCreateRules(projectId: string, waveId: string, scenari
 // (0 zbývajících argumentů po .bind) se v testu ukázalo, že se akce
 // přes formAction nespustí správně.
 export async function deleteRule(projectId: string, waveId: string, ruleId: string, _formData: FormData) {
+  await requireUser();
   await prisma.rule.delete({ where: { id: ruleId } });
   revalidatePath(settingsPath(projectId, waveId));
   redirect(`${settingsPath(projectId, waveId)}?saved=${encodeURIComponent("Smazáno")}`);

@@ -1,5 +1,6 @@
 "use server";
 
+import { requireUser } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 import { redirect } from "next/navigation";
@@ -8,6 +9,7 @@ import { isValidProjectCode } from "@/lib/projectCode";
 import { isValidLogoFile, fileToLogoDataUrl } from "@/lib/logo";
 
 export async function createWave(projectId: string, formData: FormData) {
+  await requireUser();
   const name = String(formData.get("name") || "").trim();
   const yearRaw = String(formData.get("year") || "").trim();
   const months = formData
@@ -33,6 +35,7 @@ export async function createWave(projectId: string, formData: FormData) {
 }
 
 export async function updateProject(projectId: string, formData: FormData) {
+  await requireUser();
   const settingsPath = `/projects/${projectId}/settings`;
 
   const name = String(formData.get("name") || "").trim();
@@ -98,6 +101,7 @@ export async function updateProject(projectId: string, formData: FormData) {
 }
 
 export async function createScenarioTemplate(projectId: string, formData: FormData) {
+  await requireUser();
   const name = String(formData.get("templateName") || "").trim();
 
   if (!name) {

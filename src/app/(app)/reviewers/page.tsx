@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/Badge";
 import type { BadgeTone } from "@/components/ui/Badge";
 import { UserCheck } from "lucide-react";
 import { getReviewerSuccessRates } from "@/lib/stats/reviewerStats";
+import { requireUser } from "@/lib/auth/session";
 
 function pluralizeKontrol(n: number): string {
   if (n === 1) return "kontrola";
@@ -19,6 +20,8 @@ function successTone(rate: number): BadgeTone {
 }
 
 export default async function ReviewersPage() {
+  await requireUser();
+
   const [reviewers, successRates] = await Promise.all([
     prisma.reviewer.findMany({ orderBy: [{ lastName: "asc" }, { firstName: "asc" }] }),
     getReviewerSuccessRates(),

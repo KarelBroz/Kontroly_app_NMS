@@ -30,6 +30,7 @@ import { FindingRow } from "./FindingRow";
 import { AutoSubmitSelect } from "./AutoSubmitSelect";
 import { branchName, shopperName } from "@/lib/visits/visitInfo";
 import { buildQuestionLabels, formatQuestionLine, secondaryQuestionCode } from "@/lib/rules/questionLabels";
+import { requireUser } from "@/lib/auth/session";
 
 const DEFAULT_PAGE_SIZE = 50;
 const PAGE_SIZE_OPTIONS = [
@@ -188,6 +189,8 @@ export default async function WaveDetailPage({
     findingType?: string;
   };
 }) {
+  await requireUser();
+
   const wave = await prisma.wave.findUnique({
     where: { id: params.waveId },
     include: {

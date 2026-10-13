@@ -20,6 +20,7 @@ import {
   deleteRule,
   bulkCreateRules,
 } from "../actions";
+import { requireUser } from "@/lib/auth/session";
 
 const MONTHS = [
   "Leden",
@@ -66,6 +67,8 @@ export default async function WaveSettingsPage({
   params: { projectId: string; waveId: string };
   searchParams: { error?: string };
 }) {
+  await requireUser();
+
   const wave = await prisma.wave.findUnique({
     where: { id: params.waveId },
     include: {

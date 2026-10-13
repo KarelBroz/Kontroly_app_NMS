@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/Button";
 import { Layers, AlertTriangle, Settings } from "lucide-react";
 import { createWave, createScenarioTemplate } from "./actions";
 import { isProjectCodeStale, suggestedProjectCode } from "@/lib/projectCode";
+import { requireUser } from "@/lib/auth/session";
 
 const MONTHS = [
   "Leden",
@@ -40,6 +41,8 @@ export default async function ProjectDetailPage({
   params: { projectId: string };
   searchParams: { error?: string };
 }) {
+  await requireUser();
+
   const project = await prisma.project.findUnique({
     where: { id: params.projectId },
     include: {

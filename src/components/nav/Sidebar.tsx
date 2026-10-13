@@ -24,11 +24,11 @@ const NAV_ITEMS = [
   { href: "/reviewers", label: "Databáze kontrolorů", icon: UserCheck },
   { href: "/archiv", label: "Archiv šablon", icon: Archive },
   { href: "/settings", label: "Nastavení", icon: Settings },
-  { href: "/users", label: "Správa uživatelů", icon: Users },
-  { href: "/bug-reports", label: "Sběr chyb", icon: Flag },
+  { href: "/users", label: "Správa uživatelů", icon: Users, adminOnly: true },
+  { href: "/bug-reports", label: "Sběr chyb", icon: Flag, adminOnly: true },
 ];
 
-export function Sidebar({ userName }: { userName: string }) {
+export function Sidebar({ userName, isAdmin }: { userName: string; isAdmin: boolean }) {
   const pathname = usePathname();
 
   return (
@@ -41,7 +41,7 @@ export function Sidebar({ userName }: { userName: string }) {
       </Link>
 
       <nav className="flex-1 space-y-1 px-3 py-2">
-        {NAV_ITEMS.map((item) => {
+        {NAV_ITEMS.filter((item) => !("adminOnly" in item) || isAdmin).map((item) => {
           const active = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
           const Icon = item.icon;
           return (

@@ -1,5 +1,6 @@
 "use server";
 
+import { requireUser } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 import { redirect } from "next/navigation";
@@ -8,6 +9,7 @@ import { isValidProjectCode } from "@/lib/projectCode";
 import { isValidLogoFile, fileToLogoDataUrl } from "@/lib/logo";
 
 export async function createProject(formData: FormData) {
+  await requireUser();
   const name = String(formData.get("name") || "").trim();
   const client = String(formData.get("client") || "").trim();
   const description = String(formData.get("description") || "").trim();

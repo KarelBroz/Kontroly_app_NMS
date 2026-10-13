@@ -66,13 +66,24 @@ npm run dev
 
 Appka poběží na http://localhost:3000. První účet si založíš na `/register` (jen s e-mailem `@nms.eu`).
 
-## Přihlašování a obnovení hesla
+## Přihlašování, role a zabezpečení
 
-- Registrace (`/register`) je omezená na e-maily s doménou `@nms.eu`, a k dokončení potřebuje JEDNU ze dvou věcí:
-  - **Předem povolený e-mail** — spravuje se na `/users` (kdokoliv přihlášený, zatím bez rolí), tabulka `AllowedRegistrationEmail`. Účet se založí rovnou, bez kódu — identitu v tomhle případě ověřuje ten, kdo adresu na `/users` přidal. Zůstává jako rychlá cesta i natrvalo, ne jen dočasná náhrada za e-mail.
-  - **Ověření e-mailu 6místným kódem** (`/register/verify`) — bez zadání kódu zaslaného na danou adresu se `User` vůbec nezaloží (drží se jako `PendingRegistration` max. 15 minut, max. 5 pokusů na kód).
-- Zapomenuté heslo (`/forgot-password`) pošle uživateli e-mail s časově omezeným odkazem (60 minut, jednorázový token — hash v DB, syrová hodnota jen v odkazu) na `/reset-password`, kde si nastaví nové heslo.
-- E-maily posílá [Resend](https://resend.com) přes `src/lib/mail/sendMail.ts` (čistý `fetch`, žádná další závislost). Bez nastaveného `RESEND_API_KEY` appka požadavek na reset přijme (kvůli ochraně proti zjišťování existujících účtů vždy ukáže stejnou "odesláno" hlášku), ale e-mail reálně neodejde — chyba se jen zaloguje.
+**Ochrana přístupu má dvě vrstvy — obě jsou povinné:**
+
+1. **Middleware** ([`src/middleware.ts`](src/middleware.ts)) — bez platného přihlášení (podepsaný JWT) se požadavek nedostane k žádné stránce, server action ani exportu. Veřejné jsou jen `/login`, `/register`, `/forgot-password`, `/reset-password` a `/api/auth`.
+2. **`requireUser()` / `requireAdmin()`** ([`src/lib/auth/session.ts`](src/lib/auth/session.ts)) — volá se na začátku **každé** stránky, server action a route handleru v `src/app/(app)`. Ověřuje navíc, že účet v DB pořád existuje, a bere roli čerstvě z DB.
+
+⚠️ **Kontrola jen v `layout.tsx` nestačí** — Next.js layout při navigaci znovu nevykresluje, takže upraveným (RSC) požadavkem šlo načíst obsah stránky i bez přihlášení. Každá nová stránka / akce / route proto musí začínat `await requireUser()` (nebo `requireAdmin()`).
+
+- **Role** — `USER` (běžná práce: projekty, vlny, importy, pravidla, nálezy) a `ADMIN` (navíc správa uživatelů na `/users` a sběr chyb na `/bug-reports`). Role se mění na `/users`; admin nemůže měnit sám sebe.
+- **Zneplatnění přihlášení** — `User.sessionVersion`; zvyšuje se při změně hesla a role. Smazaný účet je odhlášený okamžitě. Přihlášení jinak vyprší po 12 hodinách.
+- **Omezení pokusů** ([`src/lib/auth/rateLimit.ts`](src/lib/auth/rateLimit.ts), tabulka `RateLimitHit`) — přihlášení max. 5 neúspěšných pokusů na e-mail / 20 na IP za 15 minut; registrace, opětovné zaslání kódu a obnova hesla mají hodinové limity.
+- **Registrace** (`/register`) jen pro `@nms.eu` a jen jednou ze dvou cest:
+  - **Předem povolený e-mail** — přidává admin na `/users` (tabulka `AllowedRegistrationEmail`), povolení je jednorázové a po založení účtu zmizí.
+  - **Ověření e-mailu 6místným kódem** (`/register/verify`) — `User` se založí až po zadání kódu (drží se jako `PendingRegistration` max. 15 minut, max. 5 pokusů na kód).
+- **Zapomenuté heslo** (`/forgot-password`) — e-mail s jednorázovým odkazem (60 minut, v DB jen hash tokenu) na `/reset-password`. Změna hesla odhlásí všechna ostatní přihlášení.
+- E-maily posílá [Resend](https://resend.com) přes `src/lib/mail/sendMail.ts`. Bez `RESEND_API_KEY` appka požadavek na reset přijme (kvůli ochraně proti zjišťování existujících účtů vždy ukáže stejnou "odesláno" hlášku), ale e-mail reálně neodejde — chyba se jen zaloguje.
+- **Bezpečnostní HTTP hlavičky** (zákaz vložení do iframe, HSTS, nosniff…) jsou v [`next.config.mjs`](next.config.mjs).
 
 ## Nasazení (Vercel + Neon)
 
@@ -93,6 +104,6 @@ Appka nemá natvrdo zadanou doménu — vše jde přes env proměnné (`NEXT_PUB
 ## Budoucí rozšíření
 
 - **Napojení na Navigátor** — druhý `ImportSource` (API místo souboru), viz `src/lib/import`.
-- **Role uživatelů** — `User` model je připravený na přidání pole `role` bez velké přestavby.
+- **Přihlášení přes firemní Microsoft účet (Entra ID)** — nahradí vlastní hesla a registraci.
 - **Migrace místo `db push`** — až bude appka v ostrém provozu s reálnými daty.
 - **Kontrola gramatiky přes AI** — offline heuristika chytá jen mechanické chyby; přesnější kontrola (skutečná gramatika/pravopis) by šla přes Claude API (`ANTHROPIC_API_KEY`), zatím vědomě odloženo kvůli nákladům a rychlosti importu velkých dávek dat.

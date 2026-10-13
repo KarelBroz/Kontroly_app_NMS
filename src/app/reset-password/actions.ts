@@ -37,7 +37,11 @@ export async function resetPassword(formData: FormData) {
   const passwordHash = await bcrypt.hash(password, 10);
 
   await prisma.$transaction([
-    prisma.user.update({ where: { id: resetToken.userId }, data: { passwordHash } }),
+    // sessionVersion + 1 = odhlásí se všechna dosavadní přihlášení (např. útočník, kvůli kterému se heslo mění)
+    prisma.user.update({
+      where: { id: resetToken.userId },
+      data: { passwordHash, sessionVersion: { increment: 1 } },
+    }),
     prisma.passwordResetToken.update({ where: { id: resetToken.id }, data: { usedAt: new Date() } }),
     // ostatní nepoužité tokeny stejného uživatele zneplatníme
     prisma.passwordResetToken.deleteMany({

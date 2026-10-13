@@ -3,6 +3,7 @@ import { Archive, FolderKanban } from "lucide-react";
 import { prisma } from "@/lib/prisma";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
+import { requireUser } from "@/lib/auth/session";
 
 /**
  * Archiv všech šablon scénářů napříč všemi projekty, a u každé kde všude
@@ -11,6 +12,8 @@ import { Badge } from "@/components/ui/Badge";
  * ke čtení (bez editace/mazání odsud).
  */
 export default async function ArchivPage() {
+  await requireUser();
+
   const templates = await prisma.scenarioTemplate.findMany({
     include: {
       project: { select: { id: true, name: true } },

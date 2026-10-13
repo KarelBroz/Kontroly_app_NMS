@@ -27,7 +27,9 @@ function LoginForm() {
     setLoading(false);
 
     if (result?.error) {
-      setError("Nesprávný e-mail nebo heslo.");
+      // "CredentialsSignin" = špatné údaje; jiný text je hláška ze serveru
+      // (např. příliš mnoho pokusů, viz src/lib/auth.ts)
+      setError(result.error === "CredentialsSignin" ? "Nesprávný e-mail nebo heslo." : result.error);
       return;
     }
 

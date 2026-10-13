@@ -1,6 +1,5 @@
 import Link from "next/link";
-import { getServerSession } from "next-auth";
-import { authOptions } from "@/lib/auth";
+import { requireUser } from "@/lib/auth/session";
 import { prisma } from "@/lib/prisma";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
@@ -20,9 +19,9 @@ import { currentYearMonth, monthLabel, monthRange } from "@/lib/stats/dateRange"
 import { getLastActiveWaveIdsByProject, projectQuickLink } from "@/lib/waves/lastActiveWave";
 
 export default async function HomePage() {
-  const session = await getServerSession(authOptions);
+  const user = await requireUser();
   // Jen křestní jméno z profilu (User.name je "Jméno Příjmení").
-  const firstName = session?.user?.name?.trim().split(/\s+/)[0] || null;
+  const firstName = user.name?.trim().split(/\s+/)[0] || null;
 
   const { year, month } = currentYearMonth();
   const range = monthRange(year, month);

@@ -14,6 +14,7 @@ import { ReviewerPodium } from "@/components/stats/ReviewerPodium";
 import { RankedBarList } from "@/components/stats/RankedBarList";
 import { cn } from "@/lib/utils";
 import { getLastActiveWaveIdsByProject, projectQuickLink } from "@/lib/waves/lastActiveWave";
+import { requireUser } from "@/lib/auth/session";
 
 function periodHref(mode: "month" | "year", year: number, month?: number) {
   const params = new URLSearchParams({ mode, year: String(year) });
@@ -26,6 +27,8 @@ export default async function StatisticsPage({
 }: {
   searchParams: { mode?: string; year?: string; month?: string };
 }) {
+  await requireUser();
+
   const { year: curYear, month: curMonth } = currentYearMonth();
   const mode: "month" | "year" = searchParams.mode === "year" ? "year" : "month";
   const year = Number(searchParams.year) || curYear;
