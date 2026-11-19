@@ -5,6 +5,7 @@ import { checkNumericRange } from "./numericRange";
 import { checkConditionalRequired } from "./conditionalRequired";
 import { checkProductAllowlist } from "./productAllowlist";
 import { checkNumericThresholdConsistency } from "./numericThresholdConsistency";
+import { checkCondition } from "./conditionCheck";
 import { checkRealDateWindow, buildRealDateMessage } from "./realDateWindow";
 import { checkTextForIssues } from "./grammarCheck";
 import { isQuestionColumn } from "./matchQuestion";
@@ -18,6 +19,7 @@ const CHECKERS: Record<RuleType, RuleChecker> = {
   [RuleType.CONDITIONAL_REQUIRED]: checkConditionalRequired,
   [RuleType.PRODUCT_ALLOWLIST]: checkProductAllowlist,
   [RuleType.NUMERIC_THRESHOLD_CONSISTENCY]: checkNumericThresholdConsistency,
+  [RuleType.CONDITION]: checkCondition,
 };
 
 /** Jedna "zamýšlená" řádka do tabulky Finding — ještě neuložená (viz computeFindingsForVisit). */

@@ -287,6 +287,11 @@ enum RuleType {
   // fronta 3,1+ zákazníků" (nad 3) musí mít u "byla fronta max. 3?"
   // odpověď "Ne".
   NUMERIC_THRESHOLD_CONSISTENCY
+  // Podmínková kontrola — obecné "když platí X, musí platit Y" nad odpověďmi
+  // (kódy možností, prázdné/vyplněné, klíčová slova, délky textů, data a
+  // časy). Config viz src/lib/rules/conditionCheck.ts. Zakládá se skriptem
+  // (např. scripts/seed-tesco-mobile.mjs), ne formulářem.
+  CONDITION
 }
 
 // Pravidlo kontroly navázané na konkrétní scénář (ne na celou vlnu) —

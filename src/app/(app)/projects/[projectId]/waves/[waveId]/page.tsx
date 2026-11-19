@@ -72,6 +72,7 @@ const RULE_TYPE_TONE: Record<RuleType, BadgeTone> = {
   [RuleType.CONDITIONAL_REQUIRED]: "indigo",
   [RuleType.PRODUCT_ALLOWLIST]: "green",
   [RuleType.NUMERIC_THRESHOLD_CONSISTENCY]: "amber",
+  [RuleType.CONDITION]: "red",
 };
 const SYSTEM_CHECK_TONE: Record<string, BadgeTone> = {
   [SystemCheckType.REAL_DATE_WINDOW]: "amber",
