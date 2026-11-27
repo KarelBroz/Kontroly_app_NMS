@@ -222,6 +222,10 @@ model Visit {
   // naparsovaná data odpovědí (klíč = název sloupce z importu)
   data Json
 
+  // kdy se z dat odstranily osobní údaje (src/lib/anonymize/anonymize.ts);
+  // null = data ze starších importů, ještě v původní podobě
+  anonymizedAt DateTime?
+
   lastImportBatchId String?
   lastImportBatch   ImportBatch? @relation(fields: [lastImportBatchId], references: [id])
 

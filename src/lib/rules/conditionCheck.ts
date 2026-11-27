@@ -209,7 +209,7 @@ function shorten(text: string, max = 60): string {
 // ---------- jméno a příjmení ----------
 
 // Tituly a oslovení před/za jménem (bez teček, malými písmeny bez diakritiky).
-const TITLES = new Set([
+export const TITLES = new Set([
   "bc", "bca", "ing", "arch", "mgr", "mga", "mudr", "mddr", "mvdr", "judr", "phdr", "rndr", "paeddr", "thdr",
   "pharmdr", "rsdr", "phmr", "dr", "phd", "dis", "csc", "drsc", "doc", "prof", "mba", "bba", "msc", "ma", "ba",
   "llm", "llb", "dipl", "pan", "pani", "slecna",
@@ -217,7 +217,7 @@ const TITLES = new Set([
 
 // Častá česká křestní jména (bez diakritiky) — jen pro odhad prohozeného
 // pořadí („Novák Jan“): když je druhé slovo známé jméno a první ne.
-const FIRST_NAMES = new Set(
+export const FIRST_NAMES = new Set(
   (
     "jan jiri petr josef pavel martin tomas jaroslav miroslav zdenek vaclav michal frantisek jakub milan karel lukas " +
     "david ondrej vladimir ladislav roman stanislav marek radek daniel antonin vojtech filip adam matej jaromir patrik " +

@@ -1,6 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import { ExcelCsvImportSource } from "./excelCsvImportSource";
 import { hashRowData, legacyHashRowData, stableStringify } from "./hash";
+import { anonymizeVisitData, isAnonymizationEnabled } from "@/lib/anonymize/anonymize";
 import { readControlReviewer } from "./controlFields";
 import { computeFindingsForVisit, replaceFindings, saveFindings } from "@/lib/rules/runRules";
 
@@ -40,7 +41,14 @@ export async function importVisitsFromFile(params: {
   const { waveId, scenarioId, fileName, buffer, uploadedById } = params;
 
   const source = new ExcelCsvImportSource();
-  const rows = await source.parse(buffer, fileName);
+  const parsedRows = await source.parse(buffer, fileName);
+
+  // Osobní údaje (shopper, kontrolor, jména v odpovědích, e-maily a telefony
+  // v textech) se odstraní hned po načtení — do databáze ani do nálezů se
+  // vůbec nedostanou. Viz src/lib/anonymize/anonymize.ts.
+  const anonymize = isAnonymizationEnabled();
+  const rows = anonymize ? parsedRows.map((row) => ({ ...row, data: anonymizeVisitData(row.data) })) : parsedRows;
+  const anonymizedAt = anonymize ? new Date() : null;
 
   const batch = await prisma.importBatch.create({
     data: { waveId, scenarioId, fileName, uploadedById, rowsTotal: rows.length },
@@ -156,6 +164,7 @@ export async function importVisitsFromFile(params: {
         data: r.data as any,
         lastImportBatchId: batch.id,
         reviewerId: r.reviewerId,
+        anonymizedAt,
       })),
     });
 
@@ -197,6 +206,7 @@ export async function importVisitsFromFile(params: {
             data: r.data as any,
             lastImportBatchId: batch.id,
             reviewerId: r.reviewerId,
+            anonymizedAt,
           },
         })
       )
