@@ -35,16 +35,33 @@ export async function importWaveFile(projectId: string, waveId: string, formData
     redirect(`${wavePath(projectId, waveId)}?error=${encodeURIComponent("Vyber soubor (.xlsx nebo .csv).")}`);
   }
 
+  // Scénář musí patřit téhle vlně (zastaralý formulář v jiné záložce apod.).
+  const scenario = await prisma.scenario.findFirst({ where: { id: scenarioId, waveId }, select: { id: true } });
+  if (!scenario) {
+    redirect(
+      `${wavePath(projectId, waveId)}?error=${encodeURIComponent("Vybraný scénář v téhle vlně neexistuje, obnov stránku.")}`
+    );
+  }
+
   const arrayBuffer = await (file as File).arrayBuffer();
   const buffer = Buffer.from(arrayBuffer);
 
-  const result = await importVisitsFromFile({
-    waveId,
-    scenarioId,
-    fileName: fixMojibakeFileName((file as File).name),
-    buffer,
-    uploadedById: user.id,
-  });
+  let result;
+  try {
+    result = await importVisitsFromFile({
+      waveId,
+      scenarioId,
+      fileName: fixMojibakeFileName((file as File).name),
+      buffer,
+      uploadedById: user.id,
+    });
+  } catch (err) {
+    console.error("importWaveFile failed", err);
+    const message = err instanceof Error && err.message ? err.message : "neznámá chyba";
+    redirect(
+      `${wavePath(projectId, waveId)}?error=${encodeURIComponent(`Import se nepodařil: ${message}`)}`
+    );
+  }
 
   revalidatePath(wavePath(projectId, waveId));
   redirect(
@@ -284,11 +301,24 @@ export async function updateScenarioSettings(
 
 export async function removeScenario(projectId: string, waveId: string, scenarioId: string) {
   await requireUser();
-  const visitCount = await prisma.visit.count({ where: { scenarioId } });
+  const [visitCount, batchCount] = await Promise.all([
+    prisma.visit.count({ where: { scenarioId } }),
+    prisma.importBatch.count({ where: { scenarioId } }),
+  ]);
   if (visitCount > 0) {
     redirect(
       `${settingsPath(projectId, waveId)}?error=${encodeURIComponent(
         "Tenhle scénář nejde smazat, mají k němu naimportované návštěvy."
+      )}`
+    );
+  }
+
+  if (batchCount > 0) {
+    // Import do scénáře proběhl (třeba se všemi řádky přeskočenými) — záznam
+    // o importu na scénář odkazuje, takže by smazání skončilo chybou databáze.
+    redirect(
+      `${settingsPath(projectId, waveId)}?error=${encodeURIComponent(
+        "Tenhle scénář nejde smazat, jsou k němu záznamy o importech."
       )}`
     );
   }

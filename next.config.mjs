@@ -13,6 +13,12 @@ const securityHeaders = [
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   poweredByHeader: false,
+  experimental: {
+    // Výchozí limit server actions je 1 MB — větší import (.xlsx/.csv) nebo
+    // logo (povoleno do 2 MB) by spadly ještě před vlastní kontrolou.
+    // Vercel stejně propustí nejvýš ~4,5 MB.
+    serverActions: { bodySizeLimit: "4mb" },
+  },
   async headers() {
     return [{ source: "/:path*", headers: securityHeaders }];
   },

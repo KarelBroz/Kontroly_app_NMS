@@ -29,11 +29,15 @@ export function buildVisitWhere(waveId: string, params: VisitFilterParams): Pris
   }
 
   const findingType = params.findingType && params.findingType !== "all" ? params.findingType : "";
+  // Neznámá hodnota z URL (překlep, stará záložka) se ignoruje — jinak by
+  // Prisma vyhodila chybu a stránka i export spadly.
   if (findingType) {
     if (findingType.startsWith(SYS_PREFIX)) {
-      const systemCheck = findingType.slice(SYS_PREFIX.length) as SystemCheckType;
-      where.findings = { some: { systemCheck } };
-    } else {
+      const systemCheck = findingType.slice(SYS_PREFIX.length);
+      if ((Object.values(SystemCheckType) as string[]).includes(systemCheck)) {
+        where.findings = { some: { systemCheck: systemCheck as SystemCheckType } };
+      }
+    } else if ((Object.values(RuleType) as string[]).includes(findingType)) {
       where.findings = { some: { rule: { type: findingType as RuleType } } };
     }
   }

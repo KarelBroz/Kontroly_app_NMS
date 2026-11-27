@@ -17,6 +17,6 @@ export const config = {
   // Veřejné jsou jen přihlášení, registrace, obnova hesla, endpointy
   // NextAuth a statické soubory Next.js. Všechno ostatní je chráněné.
   matcher: [
-    "/((?!login|register|forgot-password|reset-password|api/auth|_next/static|_next/image|favicon\\.ico|robots\\.txt).*)",
+    "/((?!login|register|forgot-password|reset-password|api/auth|_next/static|_next/image|favicon\\.ico|icon\\.svg|apple-icon\\.png|robots\\.txt).*)",
   ],
 };

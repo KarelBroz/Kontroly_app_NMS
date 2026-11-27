@@ -115,7 +115,11 @@ export async function importVisitsFromFile(params: {
       continue;
     }
 
-    toRecheck.push({ id: existing.id, contentHash, data: row.data, reviewerId });
+    // Data přes JSON, aby kontroly dostaly stejné typy jako u nových návštěv
+    // a při "Zkontrolovat znovu" (z DB chodí datumy jako ISO řetězce, ne Date)
+    // — jinak CONDITION pravidla s datem hlásila falešné nálezy jen tady.
+    const data = JSON.parse(JSON.stringify(row.data)) as typeof row.data;
+    toRecheck.push({ id: existing.id, contentHash, data, reviewerId });
   }
 
   const rowsNew = toCreate.length;

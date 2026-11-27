@@ -108,7 +108,8 @@ export async function GET(request: NextRequest, context: { params: { projectId: 
   const fileNameAscii = (wave.project.name + " - " + wave.name + " - nalezy.xlsx")
     .normalize("NFD")
     .replace(new RegExp("[\\u0300-\\u036f]", "g"), "")
-    .replace(/[^\x20-\x7e]/g, "_");
+    .replace(/[^\x20-\x7e]/g, "_")
+    .replace(/["\\]/g, "_");
 
   return new NextResponse(buffer, {
     status: 200,

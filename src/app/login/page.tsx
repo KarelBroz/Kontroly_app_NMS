@@ -3,11 +3,26 @@
 import { useState, Suspense } from "react";
 import type { FormEvent } from "react";
 import { signIn } from "next-auth/react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import Link from "next/link";
 
+/**
+ * Kam po přihlášení — middleware sem posílá původní adresu v ?callbackUrl=.
+ * Povolené jsou jen adresy v rámci appky (žádné přesměrování na cizí web).
+ */
+function safeCallbackUrl(raw: string | null): string {
+  if (!raw) return "/";
+  try {
+    const url = new URL(raw, window.location.origin);
+    if (url.origin !== window.location.origin) return "/";
+    if (url.pathname.startsWith("/login")) return "/";
+    return `${url.pathname}${url.search}${url.hash}`;
+  } catch {
+    return "/";
+  }
+}
+
 function LoginForm() {
-  const router = useRouter();
   const searchParams = useSearchParams();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -22,19 +37,31 @@ function LoginForm() {
     setError(null);
     setLoading(true);
 
-    const result = await signIn("credentials", { email, password, redirect: false });
-
-    setLoading(false);
-
-    if (result?.error) {
-      // "CredentialsSignin" = špatné údaje; jiný text je hláška ze serveru
-      // (např. příliš mnoho pokusů, viz src/lib/auth.ts)
-      setError(result.error === "CredentialsSignin" ? "Nesprávný e-mail nebo heslo." : result.error);
+    let result;
+    try {
+      result = await signIn("credentials", { email, password, redirect: false });
+    } catch {
+      setLoading(false);
+      setError("Přihlášení se nezdařilo, zkus to prosím znovu.");
       return;
     }
 
-    router.push("/");
-    router.refresh();
+    if (!result?.ok || result.error) {
+      setLoading(false);
+      // "CredentialsSignin" = špatné údaje; jiný text je hláška ze serveru
+      // (např. příliš mnoho pokusů, viz src/lib/auth.ts)
+      const message = result?.error;
+      setError(
+        !message || message === "CredentialsSignin" ? "Nesprávný e-mail nebo heslo." : message
+      );
+      return;
+    }
+
+    // Plné načtení stránky místo router.push + router.refresh: klientská cache
+    // routeru si pamatovala přesměrování "/" → /login z doby před přihlášením
+    // a refresh hned po push navigaci občas zrušil — proto bylo potřeba klikat
+    // víckrát. Tlačítko zůstává ve stavu "Přihlašuji…", dokud se stránka nenačte.
+    window.location.assign(safeCallbackUrl(searchParams.get("callbackUrl")));
   }
 
   return (
