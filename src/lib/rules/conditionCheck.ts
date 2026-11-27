@@ -67,7 +67,13 @@ export type Condition =
   | { textsMention: string[]; except?: string[] }
   // čas (hh:mm) je `min`–`max` minut po čase v jiném poli (např. odchod po příchodu);
   // když jeden z časů nejde přečíst, podmínka se neposuzuje (projde)
-  | { q: string; timeAfter: { of: string; minMinutes?: number; maxMinutes?: number } };
+  | { q: string; timeAfter: { of: string; minMinutes?: number; maxMinutes?: number } }
+  // odpověď je číslo (první číslo v textu, "15 min" -> 15) v rozsahu; prázdné/bez čísla neprojde
+  | { q: string; number: { min?: number; max?: number } }
+  // číslo je nejvýš součet čísel z jiných polí + `plus` (např. čekání + vyřízení ≤ celkem);
+  // když některé číslo chybí, podmínka se neposuzuje (projde)
+  // (`alsoAdd` = další pole přičtená k levé straně: X02 + A140 ≤ X01 + 5)
+  | { q: string; atMostSumOf: string[]; plus?: number; alsoAdd?: string[] };
 
 interface ConditionConfig {
   code?: string;
@@ -140,6 +146,12 @@ export function parseTimeOfDay(text: string): number | null {
   const num = Number(t.replace(",", "."));
   if (!Number.isNaN(num) && num >= 0 && num < 1) return Math.round(num * 24 * 60);
   return null;
+}
+
+/** První číslo v odpovědi: "15" -> 15, "cca 15 min" -> 15, "7,5" -> 7.5; bez čísla null. */
+export function parseNumber(text: string): number | null {
+  const m = text.replace(/(\d),(\d)/g, "$1.$2").match(/-?\d+(?:\.\d+)?/);
+  return m ? Number(m[0]) : null;
 }
 
 function nowAsNaiveMs(): number {
@@ -378,6 +390,19 @@ export function evaluate(cond: Condition, data: VisitData): boolean {
     );
   }
   if ("personName" in cond) return personNameProblems(text).length === 0;
+  if ("number" in cond) {
+    const n = parseNumber(text);
+    if (n === null) return false;
+    const { min, max } = cond.number;
+    return (min === undefined || n >= min) && (max === undefined || n <= max);
+  }
+  if ("atMostSumOf" in cond) {
+    const left = [cond.q, ...(cond.alsoAdd ?? [])].map((q) => parseNumber(rawText(data, q)));
+    const right = cond.atMostSumOf.map((q) => parseNumber(rawText(data, q)));
+    if ([...left, ...right].some((x) => x === null)) return true;
+    const sum = (xs: (number | null)[]) => (xs as number[]).reduce((a, b) => a + b, 0);
+    return sum(left) <= sum(right) + (cond.plus ?? 0);
+  }
   if ("timeAfter" in cond) {
     const later = parseTimeOfDay(text);
     const earlier = parseTimeOfDay(rawText(data, cond.timeAfter.of));
@@ -445,6 +470,12 @@ export function describe(cond: Condition): string {
   if ("sharesWordWith" in cond) return `${q} odpovídá ${cond.sharesWordWith.join(" / ")}`;
   if ("notSimilarToAnswerOf" in cond) return `${q} jen neopakuje znění odpovědi ${cond.notSimilarToAnswerOf}`;
   if ("personName" in cond) return `${q} ve tvaru „Jméno Příjmení“`;
+  if ("number" in cond) {
+    const { min, max } = cond.number;
+    return `${q} je číslo ${min ?? "…"}–${max ?? "…"}`;
+  }
+  if ("atMostSumOf" in cond)
+    return `${[q, ...(cond.alsoAdd ?? [])].join(" + ")} je nejvýš ${cond.atMostSumOf.join(" + ")}${cond.plus ? ` + ${cond.plus}` : ""}`;
   if ("timeAfter" in cond) {
     const { of, minMinutes, maxMinutes } = cond.timeAfter;
     return `${q} je ${minMinutes ?? 0}–${maxMinutes ?? "…"} min po ${of}`;
@@ -500,6 +531,7 @@ function referencedQuestions(cond: Condition | undefined, out: Set<string>): Set
     out.add(cond.q);
     if ("dateTimeNear" in cond) out.add(cond.dateTimeNear.of);
     if ("timeAfter" in cond) out.add(cond.timeAfter.of);
+    if ("atMostSumOf" in cond) [...cond.atMostSumOf, ...(cond.alsoAdd ?? [])].forEach((q) => out.add(q));
   }
   return out;
 }
