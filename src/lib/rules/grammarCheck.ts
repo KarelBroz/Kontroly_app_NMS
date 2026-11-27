@@ -5,6 +5,19 @@ export interface GrammarIssue {
 }
 
 /**
+ * Slova, která v češtině smějí stát dvakrát za sebou, protože pokaždé
+ * znamenají něco jiného (nebo jde o ustálené zdvojení):
+ * - „se se“ — zvratné „se“ + předložka „se“: „hezky se se mnou rozloučil“,
+ *   „seznámil se se scénářem“
+ * - „je je“ — sloveso „je“ + zájmeno „je“ (= ony/je): „je je slyšet“, „je je potřeba podepsat“
+ * - „to to“ — zájmeno + člen u přídavného jména: „bylo to to nejlepší“, „to to stálo za to“
+ * - „tak tak“ — ustálené „tak tak stihl“ (= jen taktak)
+ * - „už už“ — ustálené „už už odcházel“
+ * Ostatní zdvojení („a a“, „na na“, „si si“…) jsou téměř vždy překlep a hlásí se dál.
+ */
+const VALID_CZECH_DOUBLES = new Set(["se", "je", "to", "tak", "už"]);
+
+/**
  * Vždy a všude (napříč všemi projekty/vlnami) prochází každou textovou
  * odpověď návštěvy a hledá zjevné, mechanické chyby — offline, bez AI:
  * opakující se písmeno/slovo, vícenásobné/okrajové mezery, mezera před
@@ -32,9 +45,12 @@ export function checkTextForIssues(rawText: string): GrammarIssue | null {
 
   const words = trimmed.split(/\s+/);
   for (let i = 0; i < words.length - 1; i++) {
+    // Interpunkce mezi slovy = dvě různé části věty („Řekl to, to je jasné.“,
+    // „Ano. Ano, přesně tak.“) — to není zdvojené slovo.
+    if (/[.,!?;:–—-]$/u.test(words[i])) continue;
     const a = words[i].toLowerCase().replace(/[.,!?;:]+$/u, "");
     const b = words[i + 1].toLowerCase().replace(/[.,!?;:]+$/u, "");
-    if (a.length >= 2 && a === b) {
+    if (a.length >= 2 && a === b && !VALID_CZECH_DOUBLES.has(a)) {
       const context = words.slice(Math.max(0, i - 2), i + 3).join(" ");
       return { context, errorWord: words[i], reason: "Opakující se slovo za sebou." };
     }
