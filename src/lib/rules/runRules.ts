@@ -10,7 +10,7 @@ import { checkRealDateWindow, buildRealDateMessage } from "./realDateWindow";
 import { checkTextForIssues } from "./grammarCheck";
 import { isQuestionColumn } from "./matchQuestion";
 import type { RuleChecker, ScenarioData } from "./types";
-import { RuleType, FindingSeverity, SystemCheckType, type Rule } from "@prisma/client";
+import { RuleType, FindingSeverity, SystemCheckType, type Prisma, type Rule } from "@prisma/client";
 
 const CHECKERS: Record<RuleType, RuleChecker> = {
   [RuleType.REQUIRED]: checkRequired,
@@ -137,24 +137,89 @@ export async function runRulesForVisit(visitId: string) {
   await saveFindings(drafts);
 }
 
-/** Ručně spustí kontrolu znovu nad všemi návštěvami celé vlny (staré nálezy se nahradí). */
+/** Stejný nález před a po přepočtu = stejná návštěva, pravidlo/systémová kontrola a text. */
+function findingKey(f: { visitId: string; ruleId?: string | null; systemCheck?: SystemCheckType | null; message: string }) {
+  return `${f.visitId}|${f.ruleId ?? `sys:${f.systemCheck ?? ""}`}|${f.message}`;
+}
+
+/**
+ * Nahradí nálezy v daném rozsahu nově spočítanými — ale ruční práci
+ * kontrolorů NEZAHODÍ: nález, který po přepočtu vyjde znovu stejně (viz
+ * findingKey), si ponechá stav (vyřešeno/ignorováno), kdo ho nastavil, kdy
+ * a datum vzniku. Nové nálezy začínají jako OPEN, zmizelé se smažou.
+ *
+ * Celé to běží v jedné transakci (když výpočet nebo zápis spadne, zůstanou
+ * původní nálezy) a se zámkem na vlnu, aby dva souběžné přepočty (dva lidé
+ * uloží nastavení zároveň) nálezy nezdvojily.
+ */
+export async function replaceFindings(scope: { waveId: string; where: Prisma.FindingWhereInput }, drafts: FindingDraft[]) {
+  await prisma.$transaction(
+    async (tx) => {
+      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${`findings:${scope.waveId}`}))::text`;
+
+      const existing = await tx.finding.findMany({
+        where: scope.where,
+        select: {
+          visitId: true,
+          ruleId: true,
+          systemCheck: true,
+          message: true,
+          status: true,
+          reviewedById: true,
+          resolvedAt: true,
+          createdAt: true,
+        },
+        orderBy: { createdAt: "asc" },
+      });
+      const previousByKey = new Map<string, typeof existing>();
+      for (const f of existing) {
+        const key = findingKey(f);
+        const list = previousByKey.get(key);
+        if (list) list.push(f);
+        else previousByKey.set(key, [f]);
+      }
+
+      const data = drafts.map((d) => {
+        const previous = previousByKey.get(findingKey(d))?.shift();
+        if (!previous) return d;
+        return {
+          ...d,
+          status: previous.status,
+          reviewedById: previous.reviewedById,
+          resolvedAt: previous.resolvedAt,
+          createdAt: previous.createdAt,
+        };
+      });
+
+      await tx.finding.deleteMany({ where: scope.where });
+      const CHUNK_SIZE = 500;
+      for (let i = 0; i < data.length; i += CHUNK_SIZE) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await tx.finding.createMany({ data: data.slice(i, i + CHUNK_SIZE) as any });
+      }
+    },
+    { maxWait: 20_000, timeout: 60_000 }
+  );
+}
+
+/** Ručně spustí kontrolu znovu nad všemi návštěvami celé vlny (stav nálezů se zachová, viz replaceFindings). */
 export async function rerunRulesForWave(waveId: string) {
-  await prisma.finding.deleteMany({ where: { visit: { waveId } } });
   const visits = await prisma.visit.findMany({
     where: { waveId },
     include: { scenario: { include: { rules: { where: { isActive: true } } } } },
   });
   const drafts = visits.flatMap((visit) => computeFindingsForVisit(visit));
-  await saveFindings(drafts);
+  await replaceFindings({ waveId, where: { visit: { waveId } } }, drafts);
 }
 
 /** Ručně spustí kontrolu znovu jen nad návštěvami jednoho scénáře. */
 export async function rerunRulesForScenario(scenarioId: string) {
-  await prisma.finding.deleteMany({ where: { visit: { scenarioId } } });
+  const scenario = await prisma.scenario.findUnique({ where: { id: scenarioId }, select: { waveId: true } });
+  if (!scenario) return;
   const visits = await prisma.visit.findMany({
     where: { scenarioId },
     include: { scenario: { include: { rules: { where: { isActive: true } } } } },
   });
   const drafts = visits.flatMap((visit) => computeFindingsForVisit(visit));
-  await saveFindings(drafts);
+  await replaceFindings({ waveId: scenario.waveId, where: { visit: { scenarioId } } }, drafts);
 }

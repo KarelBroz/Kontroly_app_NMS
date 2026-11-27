@@ -1,8 +1,8 @@
 import { prisma } from "@/lib/prisma";
 import { ExcelCsvImportSource } from "./excelCsvImportSource";
-import { hashRowData } from "./hash";
+import { hashRowData, legacyHashRowData, stableStringify } from "./hash";
 import { readControlReviewer } from "./controlFields";
-import { computeFindingsForVisit, saveFindings } from "@/lib/rules/runRules";
+import { computeFindingsForVisit, replaceFindings, saveFindings } from "@/lib/rules/runRules";
 
 export interface ImportResult {
   batchId: string;
@@ -84,41 +84,49 @@ export async function importVisitsFromFile(params: {
   const toCreate: { inspectionId: string; contentHash: string; data: Record<string, unknown>; reviewerId?: string }[] =
     [];
   const toRecheck: { id: string; contentHash: string; data: Record<string, unknown>; reviewerId?: string }[] = [];
-  const skipPatches: { id: string; reviewerId?: string; needsCount: boolean }[] = [];
+  const skipPatches: { id: string; reviewerId?: string; needsCount: boolean; contentHash?: string }[] = [];
   let rowsSkipped = 0;
 
   for (const row of dedupedRows) {
-    const contentHash = hashRowData(row.data);
+    // Data přes JSON = přesně to, co se uloží do DB a co z ní při
+    // "Zkontrolovat znovu" přijde (datumy jako ISO řetězce, ne Date) — kontroly
+    // i hash tak vidí u nových, změněných i přepočítaných návštěv totéž.
+    const data = JSON.parse(JSON.stringify(row.data)) as Record<string, unknown>;
+    const contentHash = hashRowData(data);
     const control = controlByInspectionId.get(row.inspectionId);
     const reviewerId = control ? reviewerIdByEmail.get(control.email) : undefined;
     const existing = existingByInspectionId.get(row.inspectionId);
 
     if (!existing) {
-      toCreate.push({ inspectionId: row.inspectionId, contentHash, data: row.data, reviewerId });
+      toCreate.push({ inspectionId: row.inspectionId, contentHash, data, reviewerId });
       continue;
     }
 
-    if (existing.contentHash === contentHash && existing.scenarioId === scenarioId) {
+    // Návštěva naimportovaná se starým hashem (datumy se do něj nepočítaly):
+    // když se obsah opravdu nezměnil, jen se jí přepíše hash na nový.
+    const unchangedLegacy =
+      existing.contentHash !== contentHash &&
+      existing.contentHash === legacyHashRowData(row.data) &&
+      stableStringify(existing.data) === stableStringify(data);
+
+    if ((existing.contentHash === contentHash || unchangedLegacy) && existing.scenarioId === scenarioId) {
       // beze změny obsahu se přeskakuje, ale doplníme, co u návštěvy ještě
       // chybí ze starších importů (před zavedením Databáze kontrolorů/
       // statistiky úspěšnosti) — kontrolora, a "zmrazený" počet nálezů.
       const needsReviewerPatch = !!(reviewerId && existing.reviewerId !== reviewerId);
       const needsCount = existing.initialFindingsCount === null;
-      if (needsReviewerPatch || needsCount) {
+      if (needsReviewerPatch || needsCount || unchangedLegacy) {
         skipPatches.push({
           id: existing.id,
           reviewerId: needsReviewerPatch ? reviewerId : undefined,
           needsCount,
+          contentHash: unchangedLegacy ? contentHash : undefined,
         });
       }
       rowsSkipped++;
       continue;
     }
 
-    // Data přes JSON, aby kontroly dostaly stejné typy jako u nových návštěv
-    // a při "Zkontrolovat znovu" (z DB chodí datumy jako ISO řetězce, ne Date)
-    // — jinak CONDITION pravidla s datem hlásila falešné nálezy jen tady.
-    const data = JSON.parse(JSON.stringify(row.data)) as typeof row.data;
     toRecheck.push({ id: existing.id, contentHash, data, reviewerId });
   }
 
@@ -194,14 +202,15 @@ export async function importVisitsFromFile(params: {
       )
     );
 
-    await prisma.finding.deleteMany({ where: { visitId: { in: toRecheck.map((r) => r.id) } } });
+    // Stav nálezů, které po změně vyjdou znovu stejně, se zachová (viz replaceFindings).
+    const allDrafts = scenario
+      ? toRecheck.flatMap((r) =>
+          computeFindingsForVisit({ id: r.id, data: r.data, scenario: { data: scenario.data, rules: scenario.rules } })
+        )
+      : [];
+    await replaceFindings({ waveId, where: { visitId: { in: toRecheck.map((r) => r.id) } } }, allDrafts);
 
     if (scenario) {
-      const allDrafts = toRecheck.flatMap((r) =>
-        computeFindingsForVisit({ id: r.id, data: r.data, scenario: { data: scenario.data, rules: scenario.rules } })
-      );
-      await saveFindings(allDrafts);
-
       const countByVisitId = new Map<string, number>();
       for (const d of allDrafts) countByVisitId.set(d.visitId, (countByVisitId.get(d.visitId) ?? 0) + 1);
       await Promise.all(
@@ -219,8 +228,9 @@ export async function importVisitsFromFile(params: {
   if (skipPatches.length > 0) {
     await Promise.all(
       skipPatches.map(async (p) => {
-        const patch: { reviewerId?: string; initialFindingsCount?: number } = {};
+        const patch: { reviewerId?: string; initialFindingsCount?: number; contentHash?: string } = {};
         if (p.reviewerId) patch.reviewerId = p.reviewerId;
+        if (p.contentHash) patch.contentHash = p.contentHash;
         if (p.needsCount) {
           patch.initialFindingsCount = await prisma.finding.count({ where: { visitId: p.id } });
         }
