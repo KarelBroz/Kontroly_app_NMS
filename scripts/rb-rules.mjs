@@ -37,13 +37,16 @@ const X11_FINE = "(^|[^a-zá-ž])(přiměřen|primeren|akorát|akorat|adekvátn|
 const X11_TOO_SHORT = "krátk|kratk|rychle odbyt|odbyl|spěch|spech|uspěchan|uspechan";
 
 // ---------- společné pro servis a akvizici (dotazníky mají stejný základ) ----------
-function branchRules({ scenarioCode, scenarioLabel, minMinutes, maxMinutes }) {
+// Minimální celkový čas na pobočce — platí pro všechny tři scénáře.
+const MIN_MINUTES = 5;
+
+function branchRules({ scenarioCode, scenarioLabel, maxMinutes }) {
   return [
     // D — délka návštěvy
-    rule("D01", "Celkový čas na pobočce (X03) není číslo v minutách nebo je nesmyslný (1–240)", H, "X03",
-      undefined, num("X03", 1, 240)),
-    rule("D02", `Celkový čas na pobočce (X03) je mimo obvyklých ${minMinutes}–${maxMinutes} min – ověřit`, M, "X03",
-      num("X03", 1, 240), num("X03", minMinutes, maxMinutes)),
+    rule("D01", `Celkový čas na pobočce (X03) není číslo v minutách, je kratší než ${MIN_MINUTES} min nebo nesmyslně dlouhý (nad 240 min)`, H, "X03",
+      undefined, num("X03", MIN_MINUTES, 240)),
+    rule("D02", `Celkový čas na pobočce (X03) přes obvyklých ${maxMinutes} min – ověřit`, M, "X03",
+      num("X03", MIN_MINUTES, 240), num("X03", MIN_MINUTES, maxMinutes)),
     rule("D03", "Bankéř se ujal až po víc než 10 min (A30 = o8), ale celkový čas (X03) je do 10 min", H, "A30",
       all(code("A30", "o8"), num("X03", 0, 10000)), num("X03", 11)),
     rule("D04", "X11 neříká, jestli byla délka schůzky přiměřená, ani proč", M, "X11",
@@ -86,8 +89,9 @@ function branchRules({ scenarioCode, scenarioLabel, minMinutes, maxMinutes }) {
 const TEXT_RULES = (texts) => [
   rule("T01", "Výplňová odpověď místo textu („-“, „.“, „x“, „nevím“, „viz výše“, „ok“, jen číslo)", H, texts[0],
     undefined, all(...texts.map((q) => ({ q, notFiller: true })))),
-  rule("T02", "Stejný text zkopírovaný do více otázek (podobnost nad 85 %)", H, texts[0],
-    undefined, { texts, maxPairSimilarity: 0.85 }),
+  // hlásí se podobnost 95 % a víc (engine hlásí, co je NAD hranicí)
+  rule("T02", "Stejný text zkopírovaný do více otázek (podobnost 95 % a víc)", H, texts[0],
+    undefined, { texts, maxPairSimilarity: 0.9499 }),
 ];
 
 const SERVIS_TEXTS = ["X02", "X11", "X05", "a301t", "A42t", "A90", "A70", "A80", "B402t", "B220", "B230", "C60", "C70", "D120t", "D80"];
@@ -95,7 +99,7 @@ const AKVIZICE_TEXTS = ["X02", "X11", "X05", "a301t", "A42t", "A90", "A70", "A80
 const POKLADNY_TEXTS = ["X05", "X06", "A101", "A120t", "B110t", "B140"];
 
 const SERVIS = [
-  ...branchRules({ scenarioCode: "o2", scenarioLabel: "Servisní schůzka (o2)", minMinutes: 10, maxMinutes: 90 }),
+  ...branchRules({ scenarioCode: "o2", scenarioLabel: "Servisní schůzka (o2)", maxMinutes: 90 }),
   rule("R08", "Servis: chybí záminka návštěvy (X12t)", H, "X12t", undefined, filled("X12t")),
   rule("L05", "Bankéř nabízel další produkt (B601 = Ano), ale v B402 je „Žádný“", M, "B601",
     code("B601", "o0"), not(includes("B402", "o17"))),
@@ -105,7 +109,7 @@ const SERVIS = [
 ];
 
 const AKVIZICE = [
-  ...branchRules({ scenarioCode: "o0", scenarioLabel: "Akviziční schůzka (o0)", minMinutes: 15, maxMinutes: 120 }),
+  ...branchRules({ scenarioCode: "o0", scenarioLabel: "Akviziční schůzka (o0)", maxMinutes: 120 }),
   rule("R08", "Akvizice: záminka (X12t) patří jen k servisu – má být prázdná", H, "X12t", undefined, empty("X12t")),
   rule("R09", "B170 (benefit kreditní karty) se hodnotí jen, když bankéř kartu nabídl (B160 = Ano)", H, "B170",
     filled("B160"), iff(code("B160", "o0"), filled("B170"))),
@@ -138,10 +142,10 @@ const AKVIZICE = [
 
 const POKLADNY = [
   // D — délka návštěvy (X01 celkem, X02 čekání, A140 vyřízení u pokladny)
-  rule("D01", "Celkový čas na pobočce (X01) není číslo v minutách nebo je nesmyslný (1–180)", H, "X01",
-    undefined, num("X01", 1, 180)),
+  rule("D01", `Celkový čas na pobočce (X01) není číslo v minutách, je kratší než ${MIN_MINUTES} min nebo nesmyslně dlouhý (nad 180 min)`, H, "X01",
+    undefined, num("X01", MIN_MINUTES, 180)),
   rule("D02", "Celkový čas na pobočce (X01) přes 60 min – ověřit", M, "X01",
-    num("X01", 1, 180), num("X01", 1, 60)),
+    num("X01", MIN_MINUTES, 180), num("X01", MIN_MINUTES, 60)),
   rule("D03", "Čekání na pokladnu (X02) není číslo v minutách", H, "X02",
     undefined, num("X02", 0, 180)),
   rule("D04", "Vyřízení u pokladny (A140) není číslo v minutách", H, "A140",
