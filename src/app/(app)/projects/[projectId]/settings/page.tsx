@@ -55,6 +55,18 @@ export default async function ProjectSettingsPage({
             <Input id="edit-navigatorCode" name="navigatorCode" defaultValue={project.navigatorCode ?? ""} />
           </div>
           <div>
+            <Label htmlFor="edit-navigatorCodesExtra">Další kód projektu Navigátor (nepovinné)</Label>
+            <Input
+              id="edit-navigatorCodesExtra"
+              name="navigatorCodesExtra"
+              defaultValue={project.navigatorCodesExtra.join(", ")}
+              placeholder="např. 215"
+            />
+            <p className="mt-1 text-xs text-slate-500">
+              Když je projekt v Navigátoru rozdělený (např. cílené a běžné návštěvy). Víc kódů odděl čárkou.
+            </p>
+          </div>
+          <div>
             <Label htmlFor="edit-projectManager">Projektový manažer</Label>
             <Input
               id="edit-projectManager"

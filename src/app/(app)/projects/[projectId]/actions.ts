@@ -1,6 +1,7 @@
 "use server";
 
 import { requireUser } from "@/lib/auth/session";
+import { parseExtraNavigatorCodes } from "@/lib/navigator";
 import { prisma } from "@/lib/prisma";
 import { Prisma } from "@prisma/client";
 import { redirect } from "next/navigation";
@@ -45,6 +46,7 @@ export async function updateProject(projectId: string, formData: FormData) {
     .trim()
     .toUpperCase();
   const navigatorCode = String(formData.get("navigatorCode") || "").trim();
+  const extraNavigator = parseExtraNavigatorCodes(String(formData.get("navigatorCodesExtra") || ""), navigatorCode);
   const projectManager = String(formData.get("projectManager") || "").trim();
   const accountManager = String(formData.get("accountManager") || "").trim();
   const logoFile = formData.get("logo");
@@ -55,6 +57,10 @@ export async function updateProject(projectId: string, formData: FormData) {
         "Vyplňte název projektu, klienta, kód projektu, projektového manažera a account manažera."
       )}`
     );
+  }
+
+  if (extraNavigator.error !== undefined) {
+    redirect(`${settingsPath}?error=${encodeURIComponent(extraNavigator.error)}`);
   }
 
   if (!isValidProjectCode(code)) {
@@ -81,6 +87,7 @@ export async function updateProject(projectId: string, formData: FormData) {
         description: description || null,
         code,
         navigatorCode: navigatorCode || null,
+        navigatorCodesExtra: extraNavigator.codes ?? [],
         projectManager,
         accountManager,
         ...(logoUrl !== undefined ? { logoUrl } : {}),

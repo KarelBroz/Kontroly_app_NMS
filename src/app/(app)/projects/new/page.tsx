@@ -45,6 +45,13 @@ export default async function NewProjectPage({ searchParams }: { searchParams: {
             <Input id="navigatorCode" name="navigatorCode" />
           </div>
           <div>
+            <Label htmlFor="navigatorCodesExtra">Další kód projektu Navigátor (nepovinné)</Label>
+            <Input id="navigatorCodesExtra" name="navigatorCodesExtra" placeholder="např. 215" />
+            <p className="mt-1 text-xs text-slate-500">
+              Když je projekt v Navigátoru rozdělený (např. cílené a běžné návštěvy). Víc kódů odděl čárkou.
+            </p>
+          </div>
+          <div>
             <Label htmlFor="projectManager">Projektový manažer</Label>
             <Input id="projectManager" name="projectManager" required />
           </div>

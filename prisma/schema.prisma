@@ -92,6 +92,11 @@ model Project {
   // bez pevného formátu, žádná kontrola aktuálnosti.
   navigatorCode String?
 
+  // Další kódy Navigátoru pro tentýž projekt (např. projekt rozdělený na
+  // cílené a běžné návštěvy — dotazník, pravidla i kód Intranetu stejné).
+  // Odkazy na návštěvy dál používají hlavní navigatorCode.
+  navigatorCodesExtra String[] @default([])
+
   projectManager String?
   accountManager String?
 

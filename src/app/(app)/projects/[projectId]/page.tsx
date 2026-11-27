@@ -73,7 +73,11 @@ export default async function ProjectDetailPage({
           <div className="mt-1 flex flex-wrap items-center gap-2">
             <h1 className="text-2xl font-semibold text-slate-900">{project.name}</h1>
             {project.code && <Badge tone="blue">Intranet: {project.code}</Badge>}
-            {project.navigatorCode && <Badge tone="purple">Navigátor: {project.navigatorCode}</Badge>}
+            {[project.navigatorCode, ...project.navigatorCodesExtra].filter(Boolean).length > 0 && (
+              <Badge tone="purple">
+                Navigátor: {[project.navigatorCode, ...project.navigatorCodesExtra].filter(Boolean).join(", ")}
+              </Badge>
+            )}
           </div>
           <p className="mt-1 text-sm text-slate-500">{project.client}</p>
           {(project.projectManager || project.accountManager) && (
