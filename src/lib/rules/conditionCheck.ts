@@ -64,7 +64,10 @@ export type Condition =
   | { q: string; personName: true }
   // některá otevřená (textová) odpověď dotazníku obsahuje aspoň jedno klíčové
   // slovo — prohledá všechny sloupce otázek kromě `except`
-  | { textsMention: string[]; except?: string[] };
+  | { textsMention: string[]; except?: string[] }
+  // čas (hh:mm) je `min`–`max` minut po čase v jiném poli (např. odchod po příchodu);
+  // když jeden z časů nejde přečíst, podmínka se neposuzuje (projde)
+  | { q: string; timeAfter: { of: string; minMinutes?: number; maxMinutes?: number } };
 
 interface ConditionConfig {
   code?: string;
@@ -125,6 +128,17 @@ export function parseDateTime(text: string): number | null {
     const serial = Number(t);
     if (serial > 18000 && serial < 73000) return Math.round((serial - 25569) * 86400 * 1000);
   }
+  return null;
+}
+
+/** Čas dne v minutách: "14:30", "14:30:00", "1899-12-30T14:30:00.000Z", 0.6042 (zlomek dne z Excelu). */
+export function parseTimeOfDay(text: string): number | null {
+  const t = text.trim();
+  if (!t) return null;
+  const m = t.match(/(?:^|[T\s])(\d{1,2}):(\d{2})(?::\d{2})?/);
+  if (m && Number(m[1]) < 24 && Number(m[2]) < 60) return Number(m[1]) * 60 + Number(m[2]);
+  const num = Number(t.replace(",", "."));
+  if (!Number.isNaN(num) && num >= 0 && num < 1) return Math.round(num * 24 * 60);
   return null;
 }
 
@@ -364,6 +378,14 @@ export function evaluate(cond: Condition, data: VisitData): boolean {
     );
   }
   if ("personName" in cond) return personNameProblems(text).length === 0;
+  if ("timeAfter" in cond) {
+    const later = parseTimeOfDay(text);
+    const earlier = parseTimeOfDay(rawText(data, cond.timeAfter.of));
+    if (later === null || earlier === null) return true;
+    const diff = later - earlier;
+    const { minMinutes, maxMinutes } = cond.timeAfter;
+    return (minMinutes === undefined || diff >= minMinutes) && (maxMinutes === undefined || diff <= maxMinutes);
+  }
   if ("notSimilarToAnswerOf" in cond) {
     const option = stripAnswerOptionPrefix(rawText(data, cond.notSimilarToAnswerOf));
     if (!text || !option) return true;
@@ -423,6 +445,10 @@ export function describe(cond: Condition): string {
   if ("sharesWordWith" in cond) return `${q} odpovídá ${cond.sharesWordWith.join(" / ")}`;
   if ("notSimilarToAnswerOf" in cond) return `${q} jen neopakuje znění odpovědi ${cond.notSimilarToAnswerOf}`;
   if ("personName" in cond) return `${q} ve tvaru „Jméno Příjmení“`;
+  if ("timeAfter" in cond) {
+    const { of, minMinutes, maxMinutes } = cond.timeAfter;
+    return `${q} je ${minMinutes ?? 0}–${maxMinutes ?? "…"} min po ${of}`;
+  }
   return "";
 }
 
@@ -473,6 +499,7 @@ function referencedQuestions(cond: Condition | undefined, out: Set<string>): Set
   else if ("q" in cond) {
     out.add(cond.q);
     if ("dateTimeNear" in cond) out.add(cond.dateTimeNear.of);
+    if ("timeAfter" in cond) out.add(cond.timeAfter.of);
   }
   return out;
 }

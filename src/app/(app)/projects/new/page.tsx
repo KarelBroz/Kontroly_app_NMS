@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/Input";
 import { Label } from "@/components/ui/Label";
 import { Textarea } from "@/components/ui/Textarea";
 import { Button } from "@/components/ui/Button";
-import { ImagePlus } from "lucide-react";
+import { LogoPicker } from "@/components/projects/LogoPicker";
 import { createProject } from "../actions";
 import { requireUser } from "@/lib/auth/session";
 
@@ -58,16 +58,7 @@ export default async function NewProjectPage({ searchParams }: { searchParams: {
           </div>
           <div className="sm:col-span-2">
             <Label htmlFor="logo">Logo firmy (nepovinné)</Label>
-            <label
-              htmlFor="logo"
-              className="mt-1 flex cursor-pointer items-center gap-4 rounded-xl border border-dashed border-slate-300 p-4 hover:border-brand-blue-400 hover:bg-brand-blue-50/40"
-            >
-              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-400">
-                <ImagePlus className="h-5 w-5" />
-              </div>
-              <span className="text-sm text-slate-600">Nahrát logo</span>
-              <input id="logo" name="logo" type="file" accept="image/*" className="hidden" />
-            </label>
+            <LogoPicker id="logo" />
           </div>
           <div className="sm:col-span-2">
             <Button type="submit">Založit projekt</Button>
