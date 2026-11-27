@@ -1,3 +1,4 @@
+import { findMultipleSpaceSpots } from "@/lib/rules/grammarCheck";
 import { NextRequest, NextResponse } from "next/server";
 import * as XLSX from "xlsx";
 import { getCurrentUser } from "@/lib/auth/session";
@@ -63,13 +64,19 @@ export async function GET(request: NextRequest, context: { params: { projectId: 
     const shopper = shopperName(visitData);
     for (const finding of visit.findings) {
       let questionCode = "";
+      let errorSpot = "";
       if (finding.rule) {
         const cfg = finding.rule.config as { questionCode?: string } | null;
         questionCode = (cfg && cfg.questionCode) || "";
       } else if (finding.systemCheck === SystemCheckType.GRAMMAR) {
-        const det = finding.details as { field?: string } | null;
+        const det = finding.details as { field?: string; context?: string; errorWord?: string } | null;
         const field = (det && det.field) || "";
         questionCode = field.split(":")[0].trim();
+        // kde v textu chyba je — u vícenásobných mezer všechna místa, mezery jako "·"
+        const spots = findMultipleSpaceSpots((det && det.context) || "");
+        errorSpot = spots.length > 0
+          ? spots.map((s) => s.snippet.replace(/ /g, "·")).join(" | ")
+          : ((det && det.errorWord) || "").trim();
       }
 
       let typeLabel = "Systémová kontrola";
@@ -92,6 +99,7 @@ export async function GET(request: NextRequest, context: { params: { projectId: 
       row["Nazev otazky"] = questionText(questionLabels, questionCode) ?? "";
       row["Typ nalezu"] = typeLabel;
       row["Zprava"] = finding.message;
+      row["Misto chyby"] = errorSpot;
       row["Zavaznost"] = finding.severity;
       row["Stav"] = STATUS_LABELS[finding.status] || finding.status;
       row["Naposledy vyhodnotil"] = reviewedByName;

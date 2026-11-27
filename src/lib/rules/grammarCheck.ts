@@ -17,6 +17,37 @@ export interface GrammarIssue {
  */
 const VALID_CZECH_DOUBLES = new Set(["se", "je", "to", "tak", "už"]);
 
+export interface SpaceSpot {
+  /** pozice prvního znaku slova před mezerami (nebo mezer, když slovo chybí) */
+  start: number;
+  /** pozice za posledním znakem slova za mezerami */
+  end: number;
+  /** pozice samotných mezer [spacesStart, spacesEnd) */
+  spacesStart: number;
+  spacesEnd: number;
+  /** "slovo  další" — jak je v textu, i s mezerami */
+  snippet: string;
+}
+
+/**
+ * Všechna místa s vícenásobnou mezerou uvnitř textu, i se slovem před a za
+ * nimi — aby šla v appce vyznačit a kontrolor je v dlouhém textu našel.
+ */
+export function findMultipleSpaceSpots(text: string): SpaceSpot[] {
+  const spots: SpaceSpot[] = [];
+  for (const m of Array.from(text.matchAll(/ {2,}/g))) {
+    const spacesStart = m.index ?? 0;
+    const spacesEnd = spacesStart + m[0].length;
+    if (spacesStart === 0 || spacesEnd === text.length) continue; // okrajové mezery hlásí jiná kontrola
+    let start = spacesStart;
+    while (start > 0 && !/\s/.test(text[start - 1])) start--;
+    let end = spacesEnd;
+    while (end < text.length && !/\s/.test(text[end])) end++;
+    spots.push({ start, end, spacesStart, spacesEnd, snippet: text.slice(start, end) });
+  }
+  return spots;
+}
+
 /**
  * Vždy a všude (napříč všemi projekty/vlnami) prochází každou textovou
  * odpověď návštěvy a hledá zjevné, mechanické chyby — offline, bez AI:
@@ -33,9 +64,9 @@ export function checkTextForIssues(rawText: string): GrammarIssue | null {
     return { context: rawText, errorWord: "", reason: "Text má přebytečné mezery na začátku/konci." };
   }
 
-  const doubleSpaceIndex = rawText.indexOf("  ");
-  if (doubleSpaceIndex !== -1) {
-    return { context: rawText, errorWord: "  ", reason: "Vícenásobná mezera v textu." };
+  const spaceSpots = findMultipleSpaceSpots(rawText);
+  if (spaceSpots.length > 0) {
+    return { context: rawText, errorWord: spaceSpots[0].snippet, reason: "Vícenásobná mezera v textu." };
   }
 
   const repeatedCharMatch = rawText.match(/(\p{L})\1{2,}/u);

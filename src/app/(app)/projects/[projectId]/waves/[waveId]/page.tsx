@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import { prisma } from "@/lib/prisma";
@@ -23,6 +24,7 @@ import { isVisitDataEmpty } from "@/lib/visits/emptyVisit";
 import { ConfirmSubmitButton } from "@/components/ui/ConfirmSubmitButton";
 import { LoadingSubmitButton } from "@/components/ui/LoadingSubmitButton";
 import { buildNavigatorUrl } from "@/lib/navigator";
+import { findMultipleSpaceSpots } from "@/lib/rules/grammarCheck";
 import { fixMojibakeFileName } from "@/lib/fixMojibakeFileName";
 import { importWaveFile, rerunWave, deleteImportBatch } from "./actions";
 import { buildVisitWhere } from "./visitFilters";
@@ -100,6 +102,29 @@ interface GrammarDetails {
 
 /** Vykreslí kontext chyby s konkrétní chybnou částí červeně zvýrazněnou. */
 function GrammarContext({ context, errorWord }: { context: string; errorWord: string }) {
+  // Vícenásobné mezery: červeně všechna slova kolem nich a mezery podbarvené,
+  // jinak by v HTML splynuly do jedné a nebylo by vidět, kde jsou.
+  const spaceSpots = findMultipleSpaceSpots(context);
+  if (spaceSpots.length > 0) {
+    const parts: ReactNode[] = [];
+    let cursor = 0;
+    spaceSpots.forEach((spot, i) => {
+      const from = Math.max(spot.start, cursor);
+      if (from > cursor) parts.push(context.slice(cursor, from));
+      parts.push(
+        <span key={i} className="font-semibold text-red-600">
+          {context.slice(from, spot.spacesStart)}
+          <span className="whitespace-pre rounded-sm bg-red-200" title={`${spot.spacesEnd - spot.spacesStart} mezery`}>
+            {context.slice(spot.spacesStart, spot.spacesEnd)}
+          </span>
+          {context.slice(spot.spacesEnd, spot.end)}
+        </span>
+      );
+      cursor = spot.end;
+    });
+    parts.push(context.slice(cursor));
+    return <>{parts}</>;
+  }
   if (!errorWord) return <>{context}</>;
   const index = context.indexOf(errorWord);
   if (index === -1) return <>{context}</>;
