@@ -3,10 +3,13 @@
 //
 //   node scripts/seed-tesco-mobile.mjs <název vlny>          — jen vypíše, co by udělal
 //   node scripts/seed-tesco-mobile.mjs <název vlny> --apply  — zapíše do databáze
+//   node scripts/seed-tesco-mobile.mjs <název vlny> --replace — smaže VŠECHNA
+//        pravidla scénáře (i s jejich nálezy) a založí je znovu podle souboru
 //
 // DATABASE_URL se bere z .env.local. Pokud scénář ve vlně už nějaká pravidla
-// má, skript nic nezmění (aby nevznikly duplicity) — pravidla pak uprav
-// v appce, nebo je nejdřív smaž.
+// má, --apply nic nezmění (aby nevznikly duplicity) — použij --replace.
+// Po --replace v appce na stránce vlny klikni na "Zkontrolovat znovu", ať se
+// nálezy podle nových pravidel spočítají.
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -21,7 +24,8 @@ const env = fs.readFileSync(path.join(root, ".env.local"), "utf8");
 process.env.DATABASE_URL = env.match(/^DATABASE_URL="?([^"\r\n]*)"?/m)?.[1];
 
 const [waveName, flag] = process.argv.slice(2);
-const apply = flag === "--apply";
+const replace = flag === "--replace";
+const apply = flag === "--apply" || replace;
 if (!waveName) {
   console.error("Použití: node scripts/seed-tesco-mobile.mjs <název vlny> [--apply]");
   process.exit(1);
@@ -50,7 +54,7 @@ try {
   console.log(`Scénář ve vlně: ${scenario ? `existuje (${scenario._count.rules} pravidel)` : "založí se"}`);
   console.log(`Pravidel k založení: ${RULES.length}`);
 
-  if (scenario && scenario._count.rules > 0) {
+  if (scenario && scenario._count.rules > 0 && !replace) {
     throw new Error("Scénář už pravidla má — nic neměním.");
   }
   if (!apply) {
@@ -58,6 +62,10 @@ try {
   } else {
     const tpl = template ?? (await prisma.scenarioTemplate.create({ data: { projectId: project.id, name: TEMPLATE_NAME } }));
     const sc = scenario ?? (await prisma.scenario.create({ data: { waveId: wave.id, scenarioTemplateId: tpl.id } }));
+    if (replace) {
+      const deleted = await prisma.rule.deleteMany({ where: { scenarioId: sc.id } });
+      console.log(`Smazáno ${deleted.count} původních pravidel (i s jejich nálezy).`);
+    }
     const created = await prisma.rule.createMany({
       data: RULES.map((r) => ({
         scenarioId: sc.id,
