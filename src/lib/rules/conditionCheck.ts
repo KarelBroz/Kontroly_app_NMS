@@ -58,7 +58,13 @@ export type Condition =
   // text není podobný znění zvolené možnosti jiné otázky víc než `max` (0–1)
   | { q: string; notSimilarToAnswerOf: string; max: number }
   // žádné dva vyplněné texty z výčtu si nejsou podobné víc než `max` (0–1)
-  | { texts: string[]; maxPairSimilarity: number };
+  | { texts: string[]; maxPairSimilarity: number }
+  // vyplněný text je jméno ve tvaru „Jméno Příjmení“ — bez titulu, dvě slova
+  // s velkým počátečním písmenem, jméno první (prázdný projde)
+  | { q: string; personName: true }
+  // některá otevřená (textová) odpověď dotazníku obsahuje aspoň jedno klíčové
+  // slovo — prohledá všechny sloupce otázek kromě `except`
+  | { textsMention: string[]; except?: string[] };
 
 interface ConditionConfig {
   code?: string;
@@ -200,6 +206,100 @@ function shorten(text: string, max = 60): string {
   return text.length > max ? `${text.slice(0, max)}…` : text;
 }
 
+// ---------- jméno a příjmení ----------
+
+// Tituly a oslovení před/za jménem (bez teček, malými písmeny bez diakritiky).
+const TITLES = new Set([
+  "bc", "bca", "ing", "arch", "mgr", "mga", "mudr", "mddr", "mvdr", "judr", "phdr", "rndr", "paeddr", "thdr",
+  "pharmdr", "rsdr", "phmr", "dr", "phd", "dis", "csc", "drsc", "doc", "prof", "mba", "bba", "msc", "ma", "ba",
+  "llm", "llb", "dipl", "pan", "pani", "slecna",
+]);
+
+// Častá česká křestní jména (bez diakritiky) — jen pro odhad prohozeného
+// pořadí („Novák Jan“): když je druhé slovo známé jméno a první ne.
+const FIRST_NAMES = new Set(
+  (
+    "jan jiri petr josef pavel martin tomas jaroslav miroslav zdenek vaclav michal frantisek jakub milan karel lukas " +
+    "david ondrej vladimir ladislav roman stanislav marek radek daniel antonin vojtech filip adam matej jaromir patrik " +
+    "ales dominik libor robert vit lubomir zbynek jindrich oldrich vlastimil ivan rudolf bohumil igor dusan richard " +
+    "radim kamil viktor simon stepan sebastian hynek matyas marian rostislav emil eduard denis erik oskar kristian " +
+    "marie jana eva hana anna lenka katerina lucie vera alena petra veronika jaroslava tereza martina michaela jitka " +
+    "helena ludmila zdenka ivana monika eliska zuzana marketa jarmila barbora kristyna adela natalie klara karolina " +
+    "dagmar vlasta irena simona pavla andrea nikola gabriela denisa marcela olga radka iveta blanka dana bozena " +
+    "kamila sarka romana renata milada nela viktorie sofie ema laura agata stepanka magdalena silvie sabina vanda " +
+    "aneta daniela hedvika jolana libuse sona alzbeta"
+  ).split(" ")
+);
+
+const NAME_WORD_RE = /^\p{Lu}\p{Ll}+(?:-\p{Lu}\p{Ll}+)*$/u;
+
+/** Co je špatně na jménu ve tvaru „Jméno Příjmení“ — prázdné pole = v pořádku. */
+export function personNameProblems(value: string): string[] {
+  const text = value.trim().replace(/\s+/g, " ");
+  if (!text) return [];
+  const problems: string[] = [];
+  const tokens = text.split(" ");
+  const bare = (t: string) => fold(t).replace(/[.,]/g, "");
+
+  const titles = tokens.filter((t) => TITLES.has(bare(t)));
+  if (titles.length > 0) problems.push(`obsahuje titul/oslovení (${titles.join(" ")})`);
+  const words = tokens.filter((t) => !TITLES.has(bare(t)));
+  const abbreviations = words.filter((t) => /[.,]/.test(t));
+  if (abbreviations.length > 0) problems.push(`obsahuje zkratku nebo interpunkci (${abbreviations.join(" ")})`);
+
+  const clean = words.map((t) => t.replace(/[.,]/g, "")).filter(Boolean);
+  if (clean.length !== 2) {
+    const unit = clean.length === 1 ? "slovo" : clean.length >= 2 && clean.length <= 4 ? "slova" : "slov";
+    problems.push(`má ${clean.length} ${unit}, má být jméno a příjmení`);
+  }
+  const badCase = clean.filter((t) => !NAME_WORD_RE.test(t));
+  if (badCase.length > 0) problems.push(`špatná velká/malá písmena (${badCase.join(" ")})`);
+
+  if (clean.length === 2) {
+    const [first, second] = clean.map(bare);
+    const firstLooksLikeSurname = /ova$/.test(first) && !/ova$/.test(second);
+    const secondIsFirstName = FIRST_NAMES.has(second) && !FIRST_NAMES.has(first);
+    if (firstLooksLikeSurname || secondIsFirstName) problems.push("nejspíš prohozené pořadí (má být jméno, pak příjmení)");
+  }
+  return problems;
+}
+
+// ---------- zmínky v otevřených odpovědích ----------
+
+/** Otevřené (textové) odpovědi: sloupce otázek, které nejsou zvolená možnost („o2: Ne“) ani jen číslo/datum. */
+function openTextAnswers(data: VisitData, except: string[] = []): Array<[string, string]> {
+  const skip = new Set(except.map((q) => q.toLowerCase()));
+  const out: Array<[string, string]> = [];
+  for (const [key, value] of Object.entries(data)) {
+    if (typeof value !== "string" || !isQuestionColumn(key)) continue;
+    const code = key.split(":")[0].trim();
+    if (skip.has(code.toLowerCase())) continue;
+    const text = value.trim().normalize("NFC");
+    if (!text || /^o\d+/i.test(text) || /^[\d\s.,:/-]+$/.test(text) || /^\d{4}-\d{2}-\d{2}T/.test(text)) continue;
+    out.push([code, text]);
+  }
+  return out;
+}
+
+/** Nalezené zmínky: [kód otázky, úryvek textu kolem klíčového slova]. */
+function textMentions(data: VisitData, keywords: string[], except?: string[]): Array<[string, string]> {
+  const found: Array<[string, string]> = [];
+  for (const [code, text] of openTextAnswers(data, except)) {
+    // u textu v NFC zachová fold() délku (jen ubere diakritiku), pozice tedy sedí
+    const folded = fold(text);
+    for (const kw of keywords) {
+      const needle = fold(kw);
+      const at = folded.indexOf(needle);
+      if (at < 0) continue;
+      const from = Math.max(0, at - 25);
+      const to = Math.min(text.length, at + needle.length + 25);
+      found.push([code, `${from > 0 ? "…" : ""}${text.slice(from, to)}${to < text.length ? "…" : ""}`]);
+      break;
+    }
+  }
+  return found;
+}
+
 // ---------- vyhodnocení ----------
 
 export function evaluate(cond: Condition, data: VisitData): boolean {
@@ -212,6 +312,7 @@ export function evaluate(cond: Condition, data: VisitData): boolean {
     return cond.is === "empty" ? filled.length === 0 : filled.length > 0;
   }
   if ("texts" in cond) return similarPairs(cond.texts, cond.maxPairSimilarity, data).length === 0;
+  if ("textsMention" in cond) return textMentions(data, cond.textsMention, cond.except).length > 0;
 
   const text = rawText(data, cond.q);
   if ("is" in cond) return cond.is === "filled" ? text !== "" : text === "";
@@ -262,6 +363,7 @@ export function evaluate(cond: Condition, data: VisitData): boolean {
         .some((w) => w.length >= 4 && words.has(w))
     );
   }
+  if ("personName" in cond) return personNameProblems(text).length === 0;
   if ("notSimilarToAnswerOf" in cond) {
     const option = stripAnswerOptionPrefix(rawText(data, cond.notSimilarToAnswerOf));
     if (!text || !option) return true;
@@ -294,6 +396,7 @@ export function describe(cond: Condition): string {
   if ("iff" in cond) return `${describe(cond.iff[0])} právě když ${describe(cond.iff[1])}`;
   if ("range" in cond) return `${cond.range[0]}–${cond.range[1]} ${cond.is === "empty" ? "prázdné" : "vyplněné"}`;
   if ("texts" in cond) return `texty se neopakují (podobnost max. ${pct(cond.maxPairSimilarity)})`;
+  if ("textsMention" in cond) return `některý text zmiňuje „${cond.textsMention.join("“ / „")}“`;
   const q = cond.q;
   if ("is" in cond) return `${q} ${cond.is === "empty" ? "prázdné" : "vyplněné"}`;
   if ("codeIn" in cond) return `${q} = ${cond.codeIn.join(" / ")}`;
@@ -319,6 +422,7 @@ export function describe(cond: Condition): string {
       : `${q} nejpozději ${formatNaive(parseDateTime(cond.dateTimeOnOrBefore) ?? 0)}`;
   if ("sharesWordWith" in cond) return `${q} odpovídá ${cond.sharesWordWith.join(" / ")}`;
   if ("notSimilarToAnswerOf" in cond) return `${q} jen neopakuje znění odpovědi ${cond.notSimilarToAnswerOf}`;
+  if ("personName" in cond) return `${q} ve tvaru „Jméno Příjmení“`;
   return "";
 }
 
@@ -340,8 +444,15 @@ function explainFailure(cond: Condition, data: VisitData): string[] {
   }
   if ("minLength" in cond) return [`${cond.q} má jen ${rawText(data, cond.q).length} znaků (min. ${cond.minLength})`];
   if ("notFiller" in cond) return [`${cond.q} je jen výplň („${shorten(rawText(data, cond.q), 20)}“)`];
+  if ("personName" in cond) {
+    return [`${cond.q} není ve tvaru „Jméno Příjmení“: ${personNameProblems(rawText(data, cond.q)).join(", ")}`];
+  }
   if ("not" in cond) {
     const inner = cond.not;
+    if ("textsMention" in inner) {
+      const found = textMentions(data, inner.textsMention, inner.except);
+      return [`zmínka v textu: ${found.map(([code, snippet]) => `${code} „${snippet}“`).join("; ")}`];
+    }
     if ("q" in inner && "containsAny" in inner) {
       const folded = fold(rawText(data, inner.q));
       const found = inner.containsAny.filter((kw) => folded.includes(fold(kw)));
